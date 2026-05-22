@@ -1,0 +1,6 @@
+{
+  "name": "硅堆",
+  "description": "服务器算力大宗交易大厅，专注于高算力GPU集群与网络设备的货源、需求高效对接。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
