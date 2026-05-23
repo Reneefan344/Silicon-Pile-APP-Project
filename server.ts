@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -178,25 +177,36 @@ async function startServer() {
         }
       }
 
-      const genAI = new GoogleGenAI({ apiKey });
-      const result = await genAI.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { inlineData: { mimeType, data: rawBase64 } },
-              { text: extractionPrompt },
-            ],
+      const proxyUrl = `https://morning-haze-244c.415758624.workers.dev/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      const response = await fetch(proxyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { inlineData: { mimeType, data: rawBase64 } },
+                { text: extractionPrompt },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 1024,
           },
-        ],
-        config: {
-          temperature: 0.2,
-          maxOutputTokens: 1024,
-        },
+        }),
       });
 
-      const rawText = result.text || "";
+      if (!response.ok) {
+        const errBody = await response.text();
+        console.error("Gemini OCR Error:", response.status, errBody.slice(0, 300));
+        res.status(502).json({ error: `Gemini API returned ${response.status}` });
+        return;
+      }
+
+      const result = await response.json();
+      const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
       let jsonStr = rawText.trim();
       if (jsonStr.startsWith("```")) {
