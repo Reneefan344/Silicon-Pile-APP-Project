@@ -3,18 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
+import React, { Suspense } from "react";
 import { AppProvider, useApp } from "./AppContext";
 import { WelcomeView } from "./components/WelcomeView";
 import { RegisterView } from "./components/RegisterView";
-import { LobbyView } from "./components/LobbyView";
-import { PublishView } from "./components/PublishView";
-import { MessagesView } from "./components/MessagesView";
-import { TerminalView } from "./components/TerminalView";
-import { DashboardView } from "./components/DashboardView";
 import { ToastContainer } from "./components/ToastContainer";
 import { Layers, PlusSquare, Terminal, User, Grid2X2, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
+const LobbyView = React.lazy(() => import("./components/LobbyView"));
+const PublishView = React.lazy(() => import("./components/PublishView"));
+const MessagesView = React.lazy(() => import("./components/MessagesView"));
+const TerminalView = React.lazy(() => import("./components/TerminalView"));
+const DashboardView = React.lazy(() => import("./components/DashboardView"));
+
+const PageFallback = () => (
+  <div className="flex items-center justify-center py-20">
+    <div className="w-2 h-2 bg-[#ff5500] rounded-sm shadow-[0_0_12px_#ff5500] animate-pulse" />
+  </div>
+);
 
 function AppContent() {
   const {
@@ -143,11 +150,13 @@ function AppContent() {
             transition={{ duration: 0.18 }}
             className="flex-1"
           >
-            {activeTab === 'lobby' && <LobbyView />}
-            {activeTab === 'publish' && <PublishView />}
-            {activeTab === 'dashboard' && <DashboardView />}
-            {activeTab === 'messages' && <MessagesView />}
-            {activeTab === 'terminal' && <TerminalView />}
+            <Suspense fallback={<PageFallback />}>
+              {activeTab === 'lobby' && <LobbyView />}
+              {activeTab === 'publish' && <PublishView />}
+              {activeTab === 'dashboard' && <DashboardView />}
+              {activeTab === 'messages' && <MessagesView />}
+              {activeTab === 'terminal' && <TerminalView />}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
