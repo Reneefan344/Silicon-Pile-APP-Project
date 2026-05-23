@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useApp } from "../AppContext";
 import { supabase } from "../supabaseClient";
 import { Posting } from "../types";
@@ -12,6 +12,8 @@ export const TerminalView: React.FC = () => {
     toggleBookmark,
     userProfile,
     session,
+    setUserProfile,
+    addLogMessage,
     setRegistered,
     setWelcomeEntered,
     setActiveTab,
@@ -28,6 +30,72 @@ export const TerminalView: React.FC = () => {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
+  // Avatar upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const DEFAULT_AVATAR = "https://lh3.googleusercontent.com/aida-public/AB6AXuD1L8vQJJFzF8_yB5Zuqwa8Fsyo2WkYE0orm0BUm3fWQc1D-Q2IWxOZMqnV_p4JY5uwFmOzHfCsyqG5y67Osms8j021igUJuHzNyi6kfzmC4xV4oPD2vipeHcWmAp66q_4i6f39_YicIBV_rKTm2IQ_XnqezlS85dW9648AQSri5TFGFLJpn-ginsh33jXKGLR2Q1zqu6cOruwV6VAz0unSRSjaD-1xXb86CW0ZLxGbjWnrfN6e5z-GAbEVKOOSsRf3nvcc17h6QegR";
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      addLogMessage({ logName: "头像更新", category: "security", title: "头像上传失败", description: "所选文件不是图片格式", status: "alert" });
+      return;
+    }
+
+    if (file.size > 1 * 1024 * 1024) {
+      addLogMessage({ logName: "头像更新", category: "security", title: "头像上传失败", description: "图片大小超过1MB限制", status: "alert" });
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const base64 = await compressImage(file);
+      const updatedProfile = { ...userProfile!, avatar: base64 };
+      await setUserProfile(updatedProfile);
+      addLogMessage({ logName: "头像更新", category: "security", title: "头像更新成功", description: "用户头像已更新", status: "success" });
+    } catch (err) {
+      addLogMessage({ logName: "头像更新", category: "security", title: "头像上传失败", description: "图片处理异常，请重试", status: "alert" });
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxSize = 256;
+          let { width, height } = img;
+          if (width > height) {
+            if (width > maxSize) { height *= maxSize / width; width = maxSize; }
+          } else {
+            if (height > maxSize) { width *= maxSize / height; height = maxSize; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("Canvas context failed")); return; }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+        img.onerror = () => reject(new Error("Image load failed"));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error("FileReader failed"));
+      reader.readAsDataURL(file);
+    });
+  };
 
   // Filter bookmarked postings
   const bookmarkedPostings = React.useMemo(() => {
@@ -103,13 +171,32 @@ export const TerminalView: React.FC = () => {
         <div className="absolute top-0 left-0 w-full h-[2.5px] bg-[#00dbe9] opacity-75 shadow-[0_0_8px_#00dbe9]" />
         
         {/* User avatar */}
-        <div className="relative w-22 h-22 border border-[#00dbe9]/40 bg-[#0c0d1c] p-1 shrink-0 hex-clip flex items-center justify-center">
+        <div
+          className="relative w-22 h-22 border border-[#00dbe9]/40 bg-[#0c0d1c] p-1 shrink-0 hex-clip flex items-center justify-center cursor-pointer group/avatar"
+          onClick={handleAvatarClick}
+          title="点击更换头像"
+        >
+          {isUploadingAvatar && (
+            <div className="absolute inset-0 bg-black/70 z-10 flex items-center justify-center hex-clip">
+              <span className="text-[#00dbe9] text-[10px] font-mono animate-pulse">上传中</span>
+            </div>
+          )}
           <img
             alt="User Avatar"
-            className="w-full h-full object-cover hex-clip opacity-80"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1L8vQJJFzF8_yB5Zuqwa8Fsyo2WkYE0orm0BUm3fWQc1D-Q2IWxOZMqnV_p4JY5uwFmOzHfCsyqG5y67Osms8j021igUJuHzNyi6kfzmC4xV4oPD2vipeHcWmAp66q_4i6f39_YicIBV_rKTm2IQ_XnqezlS85dW9648AQSri5TFGFLJpn-ginsh33jXKGLR2Q1zqu6cOruwV6VAz0unSRSjaD-1xXb86CW0ZLxGbjWnrfN6e5z-GAbEVKOOSsRf3nvcc17h6QegR"
+            className="w-full h-full object-cover hex-clip opacity-80 group-hover/avatar:opacity-50 transition-opacity"
+            src={userProfile?.avatar || DEFAULT_AVATAR}
           />
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity z-5">
+            <span className="text-white font-mono text-[9px] tracking-wider bg-black/60 px-2 py-1 rounded-xs">更换</span>
+          </div>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarFileChange}
+        />
 
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-bold text-white tracking-widest uppercase font-sans">

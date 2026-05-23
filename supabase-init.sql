@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.postings (
   est_arrival TEXT,
   moq TEXT,
   author_name TEXT DEFAULT '',
+  expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

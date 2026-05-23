@@ -68,6 +68,7 @@ function mapPostingFromDB(row: any): Posting {
     estArrival: row.est_arrival || undefined,
     moq: row.moq || undefined,
     timestamp: row.created_at,
+    expiresAt: row.expires_at || undefined,
     authorName: row.author_name || '',
     userId: row.user_id || '',
     comments: [],
@@ -243,8 +244,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         finalLogs = freshLogs || [];
       }
 
-      // Map postings with their comments
-      const mappedPostings: Posting[] = finalPostings.map((p: any) => {
+      // Map postings with their comments, filter out expired
+      const now = new Date();
+      const activePostings = finalPostings.filter((p: any) => {
+        if (!p.expires_at) return true;
+        return new Date(p.expires_at) > now;
+      });
+      const mappedPostings: Posting[] = activePostings.map((p: any) => {
         const postComments = (commentsData || []).filter((c: any) => c.posting_id === p.id);
         return {
           ...mapPostingFromDB(p),
@@ -580,6 +586,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       est_arrival: newPostData.estArrival || null,
       moq: newPostData.moq || null,
       author_name: newPostData.authorName || userProfile?.nickname || '系统自营算力节点',
+      expires_at: newPostData.expiresAt || null,
       created_at: now,
     });
 

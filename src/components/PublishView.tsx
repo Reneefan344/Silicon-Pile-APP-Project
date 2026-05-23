@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useApp } from "../AppContext";
 import { Posting } from "../types";
-import { FileText, MapPin, MemoryStick, UploadCloud, Rocket, Check, AlertTriangle, ShieldCheck } from "lucide-react";
+import { FileText, MapPin, MemoryStick, UploadCloud, Rocket, Check, AlertTriangle, ShieldCheck, Sparkles, Clock } from "lucide-react";
 import { motion } from "motion/react";
 
 export const PublishView: React.FC = () => {
@@ -42,6 +42,14 @@ export const PublishView: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // OCR state
+  const [isOcrScanning, setIsOcrScanning] = useState(false);
+  const [ocrError, setOcrError] = useState("");
+
+  // Expiry state
+  const [expiryOption, setExpiryOption] = useState<'7' | '14' | '30' | '60' | '90' | 'custom'>('30');
+  const [customExpiryDate, setCustomExpiryDate] = useState('');
+
   // Drag and Drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -70,6 +78,95 @@ export const PublishView: React.FC = () => {
   const handleUploadClick = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
+    }
+  };
+
+  const compressImageForOcr = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const maxSize = 1024;
+          let { width, height } = img;
+          if (width > height) {
+            if (width > maxSize) { height *= maxSize / width; width = maxSize; }
+          } else {
+            if (height > maxSize) { width *= maxSize / height; height = maxSize; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("Canvas context failed")); return; }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.8));
+        };
+        img.onerror = () => reject(new Error("Image load failed"));
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => reject(new Error("FileReader failed"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleOcrScan = async () => {
+    if (!droppedFile) return;
+    if (!droppedFile.type.startsWith("image/")) {
+      setOcrError("仅支持图片文件进行AI识别");
+      return;
+    }
+
+    setOcrError("");
+    setIsOcrScanning(true);
+
+    try {
+      const compressed = await compressImageForOcr(droppedFile);
+      const response = await fetch("/api/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: compressed, fileName: droppedFile.name }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        setOcrError(data.error);
+        addLogMessage({ logName: "OCR识别", category: "system", title: "AI识别失败", description: data.error, status: "alert" });
+        return;
+      }
+
+      if (data.mock) {
+        setOcrError(data.note || "API Key未配置");
+        addLogMessage({ logName: "OCR识别", category: "system", title: "AI识别未配置", description: data.note || "", status: "alert" });
+        return;
+      }
+
+      const f = data.fields || {};
+      if (f.title) setTitle(f.title);
+      if (f.gpu) setGpu(f.gpu);
+      if (f.cpu) setCpu(f.cpu);
+      if (f.memory) setMemory(f.memory);
+      if (f.storage) setStorage(f.storage);
+      if (f.network) setNetworkArch(f.network);
+      if (f.qty) setQty(f.qty);
+      if (f.moq) setMoq(f.moq);
+      if (f.delivery) setDelivery(f.delivery);
+      if (f.location) setLocation(f.location);
+
+      const filledCount = Object.values(f).filter(v => v).length;
+      addLogMessage({
+        logName: "OCR识别",
+        category: "system",
+        title: `AI识别完成 — 已填入 ${filledCount} 个字段`,
+        description: `从图片识别出: ${JSON.stringify(f).slice(0, 200)}`,
+        status: "success"
+      });
+    } catch (err: any) {
+      setOcrError("网络异常，请重试");
+      addLogMessage({ logName: "OCR识别", category: "system", title: "AI识别异常", description: err.message || "网络错误", status: "alert" });
+    } finally {
+      setIsOcrScanning(false);
     }
   };
 
@@ -113,8 +210,18 @@ export const PublishView: React.FC = () => {
     }
     if (gpu) tagsList.push("全新测试");
 
-    const proceedWithPublish = (attachmentData?: string) => {
-      // Construct and submit mapping parameters
+    const proceedWithPublish = () => {
+      const calcExpiresAt = (): string | undefined => {
+        if (expiryOption === 'custom') {
+          if (!customExpiryDate) return undefined;
+          return new Date(customExpiryDate).toISOString();
+        }
+        const days = parseInt(expiryOption);
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return d.toISOString();
+      };
+
       setTimeout(() => {
         addPosting({
           title,
@@ -133,30 +240,26 @@ export const PublishView: React.FC = () => {
           networkArchitecture: networkArch,
           requiresContract: isStateOwned,
           supportsGuaranty: isSpotCash,
-          attachmentName: droppedFile ? droppedFile.name : undefined,
-          attachmentData,
-          moq: moq.trim().endsWith("台") || moq.trim().endsWith("台起订") ? moq.trim() : `${moq.trim()} 台起订`
+          moq: moq.trim().endsWith("台") || moq.trim().endsWith("台起订") ? moq.trim() : `${moq.trim()} 台起订`,
+          expiresAt: calcExpiresAt(),
         });
 
-        // Insert message to system logs immediately for interactive telemetry trace
         addLogMessage({
           logName: "发布指令.007",
           category: "system",
           title: activePublishSubTab === "supply" ? "算力货源已挂载" : "算力采购需求已上链",
-          description: `用户成功向大厅提交了 ${title} 规格发布，台数 ${qty} 台，位于 ${location} 机房。多签托管验证安全模块${droppedFile ? `，已挂载附件 ${droppedFile.name}` : ""}。`,
+          description: `用户成功向大厅提交了 ${title} 规格发布，台数 ${qty} 台，位于 ${location} 机房。`,
           status: "success"
         });
 
         setIsPublishing(false);
         setIsSuccess(true);
 
-        // Redirect user back to lobby to study their added item
         setTimeout(() => {
           setIsSuccess(false);
           setActiveLobbySubTab(activePublishSubTab);
           setActiveTab("lobby");
 
-          // Clear forms
           setTitle("");
           setQty("");
           setMoq("");
@@ -172,27 +275,13 @@ export const PublishView: React.FC = () => {
           setIsSpotCash(false);
           setIsPayToInspect(false);
           setRequiresDeposit(false);
+          setExpiryOption('30');
+          setCustomExpiryDate('');
         }, 1000);
       }, 1200);
     };
 
-    if (droppedFile) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        let resultUrl = reader.result as string;
-        // Limit storage size to prevent localStorage overflow
-        if (droppedFile.size > 1500000) {
-          resultUrl = "data:text/plain;base64," + btoa(`[File size limit (1.5MB) exceeded. Showing Metadata]\nFilename: ${droppedFile.name}\nSize: ${droppedFile.size} bytes\nType: ${droppedFile.type}`);
-        }
-        proceedWithPublish(resultUrl);
-      };
-      reader.onerror = () => {
-        proceedWithPublish();
-      };
-      reader.readAsDataURL(droppedFile);
-    } else {
-      proceedWithPublish();
-    }
+    proceedWithPublish();
   };
 
   return (
@@ -260,8 +349,8 @@ export const PublishView: React.FC = () => {
                   onChange={(e) => setQty(e.target.value)}
                   className="w-full h-10 px-3 bg-[#13141c] border border-[#323344] focus:border-[#00F0FF] transition-all rounded-xs focus:outline-none text-sm text-[#e1e0f7] placeholder-[#8a8a9e]/30 placeholder:text-xs font-mono"
                   placeholder="台数 / 节点数量"
-                  type="number"
-                  min="1"
+                  type="text"
+                  inputMode="numeric"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -444,24 +533,24 @@ export const PublishView: React.FC = () => {
           </div>
         </section>
 
-        {/* 4. Upload Box */}
+        {/* 4. AI Image Recognition Upload */}
         <section className="bg-[#0D0E12] border border-t-2 border-[#ff5500]/30 border-r-[#323344] border-b-[#323344] border-l-[#323344] flex flex-col rounded-sm shadow-md mb-6">
           <div className="bg-[#13141c]/50 px-4 py-2 flex items-center justify-between border-b border-[#323344]/50">
             <span className="font-mono text-xs font-bold tracking-widest text-[#00F0FF] uppercase">
-              04 // 附件
+              04 // AI 识别填表
             </span>
-            <UploadCloud className="w-3.5 h-3.5 text-gray-500" />
+            <Sparkles className="w-3.5 h-3.5 text-gray-500" />
           </div>
-          
+
           <div className="p-4">
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileSelect}
-              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+              accept="image/*"
               className="hidden"
             />
-            
+
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -474,21 +563,82 @@ export const PublishView: React.FC = () => {
               }`}
             >
               <UploadCloud className={`w-7 h-7 ${droppedFile ? "text-[#00F0FF]" : "text-[#8a8a9e]"}`} />
-              
+
               {droppedFile ? (
                 <div className="text-center">
                   <p className="text-sm text-white font-semibold font-mono">{droppedFile.name}</p>
                   <p className="text-xs text-[#00F0FF] font-mono">
-                    尺寸大小: {(droppedFile.size / (1024 * 1024)).toFixed(2)} MB // 修改附件
+                    尺寸大小: {(droppedFile.size / (1024 * 1024)).toFixed(2)} MB // 点击更换图片
                   </p>
                 </div>
               ) : (
                 <div className="text-center font-sans">
-                  <p className="text-sm font-semibold text-[#8a8a9e]">点击本框或拖拽上传文档/图片附件</p>
-                  <p className="text-[10px] text-gray-600 font-mono mt-1">最大支持规格尺寸：20MB</p>
+                  <p className="text-sm font-semibold text-[#8a8a9e]">上传图片，AI识别填表</p>
+                  <p className="text-[10px] text-gray-600 font-mono mt-1">支持 JPG/PNG 图片，点击或拖拽上传</p>
                 </div>
               )}
             </div>
+
+            {droppedFile && droppedFile.type.startsWith("image/") && (
+              <div className="mt-3 flex flex-col gap-2">
+                {ocrError && (
+                  <div className="bg-[#511500]/50 border border-[#ff5500]/30 p-2 text-[11px] text-[#ff5500] font-mono rounded-xs">
+                    {ocrError}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={isOcrScanning}
+                  onClick={handleOcrScan}
+                  className={`w-full h-10 flex items-center justify-center gap-2 font-mono text-xs font-bold tracking-widest uppercase rounded-xs transition-all cursor-pointer border ${
+                    isOcrScanning
+                      ? "bg-[#00dbe9]/10 border-[#00dbe9]/30 text-[#00dbe9] cursor-wait"
+                      : "bg-transparent border-[#00dbe9]/50 text-[#00dbe9] hover:bg-[#00dbe9]/10 hover:border-[#00dbe9]"
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{isOcrScanning ? "AI识别中..." : "AI 识别填入"}</span>
+                </button>
+              </div>
+            )}
+
+          </div>
+        </section>
+
+        {/* 5. Expiry */}
+        <section className="bg-[#0D0E12] border border-t-2 border-[#ff5500]/30 border-r-[#323344] border-b-[#323344] border-l-[#323344] flex flex-col rounded-sm shadow-md mb-6">
+          <div className="bg-[#13141c]/50 px-4 py-2 flex items-center justify-between border-b border-[#323344]/50">
+            <span className="font-mono text-xs font-bold tracking-widest text-[#00F0FF] uppercase">
+              05 // 信息有效期
+            </span>
+            <Clock className="w-3.5 h-3.5 text-gray-500" />
+          </div>
+          <div className="p-4 flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              {(['7', '14', '30', '60', '90', 'custom'] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setExpiryOption(opt)}
+                  className={`h-9 px-4 font-mono text-xs font-bold tracking-wider rounded-xs transition-all cursor-pointer border ${
+                    expiryOption === opt
+                      ? "bg-[#ff5500]/15 text-[#ff5500] border-[#ff5500]/50 shadow-[0_0_8px_rgba(255,85,0,0.15)]"
+                      : "bg-[#13141c] text-[#8a8a9e] border-[#323344] hover:border-[#ff5500]/40 hover:text-white"
+                  }`}
+                >
+                  {opt === 'custom' ? '自定义' : `${opt}天`}
+                </button>
+              ))}
+            </div>
+            {expiryOption === 'custom' && (
+              <input
+                type="date"
+                value={customExpiryDate}
+                onChange={(e) => setCustomExpiryDate(e.target.value)}
+                min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                className="w-full h-10 px-3 bg-[#13141c] border border-[#323344] focus:border-[#00F0FF] transition-all rounded-xs focus:outline-none text-sm text-[#e1e0f7] font-mono"
+              />
+            )}
           </div>
         </section>
 

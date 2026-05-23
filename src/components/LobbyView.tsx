@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useApp } from "../AppContext";
 import { Posting } from "../types";
-import { Search, SlidersHorizontal, MapPin, Zap, RefreshCw, Calendar, Tag, Info, Heart, Bookmark, AlertCircle, FileText, Download, MessageSquare, Send } from "lucide-react";
+import { Search, SlidersHorizontal, MapPin, Zap, RefreshCw, Calendar, Tag, Info, Heart, Bookmark, AlertCircle, FileText, Download, MessageSquare, Send, Share2, Copy, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { generateQRCode } from "../utils/qrcode";
 
 const CommentInputForm: React.FC<{ postId: string }> = ({ postId }) => {
   const { addComment } = useApp();
@@ -44,9 +45,6 @@ export const LobbyView: React.FC = () => {
     bookmarkedIds,
     toggleBookmark,
     submitInquiry,
-    setActiveTab,
-    setActiveChatThreadId,
-    setActiveMessageSubTab,
     addLogMessage
   } = useApp();
 
@@ -57,6 +55,11 @@ export const LobbyView: React.FC = () => {
   const [inquiryText, setInquiryText] = useState("");
   const [isSubmittingInquiry, setIsSubmittingInquiry] = useState(false);
   const [isSuccessInquiry, setIsSuccessInquiry] = useState(false);
+
+  // Share state
+  const [sharePost, setSharePost] = useState<Posting | null>(null);
+  const [shareQrDataUrl, setShareQrDataUrl] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
 
   // Filter listings based on subtab ('supply' = 货源, 'demand' = 需求) and search input
   const filteredPostings = useMemo(() => {
@@ -75,6 +78,39 @@ export const LobbyView: React.FC = () => {
     setIsSuccessInquiry(false);
   };
 
+  const handleShare = async (post: Posting) => {
+    setSharePost(post);
+    setIsCopied(false);
+    const shareUrl = `${window.location.origin}?posting=${post.id}`;
+    try {
+      const qrDataUrl = await generateQRCode(shareUrl, 200);
+      setShareQrDataUrl(qrDataUrl);
+    } catch {
+      setShareQrDataUrl('');
+    }
+  };
+
+  // Handle ?posting=xxx URL param on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const postingId = params.get('posting');
+    if (postingId) {
+      const target = postings.find(p => p.id === postingId);
+      if (target) {
+        handleOpenDetail(target);
+      }
+    }
+  }, [postings]);
+
+  const handleCopyLink = () => {
+    if (!sharePost) return;
+    const shareUrl = `${window.location.origin}?posting=${sharePost.id}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    });
+  };
+
   // Submit inquiry handler
   const handleSubmitInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,18 +122,10 @@ export const LobbyView: React.FC = () => {
       ? "收到！我对该批算力货源非常感兴趣，请问合同签署要点以及交割带宽限制是什么？期待即刻对接参数。" 
       : "收到！我们手头有充足的物理机位可立刻供给支持您的算力需求。请问托管细节与多签手续何时启动？");
       
-    const targetThreadId = await submitInquiry(selectedPost, msgNote);
+    await submitInquiry(selectedPost, msgNote);
 
     setIsSubmittingInquiry(false);
     setIsSuccessInquiry(true);
-
-    // Auto navigate to the respective message thread after 1.2s delay
-    setTimeout(() => {
-      setSelectedPost(null);
-      setActiveMessageSubTab("chat");
-      setActiveChatThreadId(targetThreadId || "guidui");
-      setActiveTab("messages");
-    }, 1200);
   };
 
   const handleDownloadAttachment = (post: Posting) => {
@@ -265,6 +293,13 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#00F0FF]/80 shrink-0" />
                       <span className="truncate">发布用户: <strong className="text-white font-medium">{post.authorName || "系统自营算力仓"}</strong></span>
+                      {post.expiresAt && (() => {
+                        const daysLeft = Math.ceil((new Date(post.expiresAt).getTime() - Date.now()) / 86400000);
+                        if (daysLeft <= 7 && daysLeft > 0) {
+                          return <span className="text-[#ffaa00] font-mono text-[9px] ml-1">({daysLeft}天后过期)</span>;
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
                       <Calendar className="w-3 h-3 text-[#ff5500]/70" />
@@ -316,12 +351,19 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center justify-end mt-2.5 pt-2.5 border-t border-[#323344]/20">
+                  <div className="flex items-center justify-end gap-2 mt-2.5 pt-2.5 border-t border-[#323344]/20">
+                    <button
+                      onClick={() => handleShare(post)}
+                      className="font-mono text-xs text-[#8a8a9e] hover:text-[#00F0FF] px-3 py-2 border border-[#323344] hover:border-[#00F0FF]/40 transition-all rounded-xs tracking-widest cursor-pointer flex items-center gap-1.5"
+                      title="分享到微信"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => handleOpenDetail(post)}
                       className="font-mono text-xs text-white bg-[#323344] hover:bg-black/40 px-4 py-2 border border-transparent hover:border-[#00F0FF]/40 transition-all rounded-xs tracking-widest cursor-pointer text-center"
                     >
-                      {post.type === "supply" ? "发起询价" : "接洽沟通"}
+                      私聊
                     </button>
                   </div>
 
@@ -582,6 +624,66 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                     </button>
                   </form>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {sharePost && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs" onClick={() => setSharePost(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0D0E12] border border-[#00F0FF] w-full max-w-sm p-5 flex flex-col items-center relative overflow-hidden rounded-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Corner accents */}
+              <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#00F0FF]" />
+              <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[#00F0FF]" />
+              <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[#00F0FF]" />
+              <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-[#00F0FF]" />
+
+              <div className="flex justify-between items-center w-full mb-4">
+                <span className="font-mono text-sm text-[#00F0FF] tracking-widest uppercase">分享算力信息</span>
+                <button onClick={() => setSharePost(null)} className="text-[#8a8a9e] hover:text-[#ff5500] font-mono text-lg cursor-pointer">✕</button>
+              </div>
+
+              <div className="text-sm text-white font-semibold mb-3 text-center">{sharePost.title}</div>
+
+              {/* QR Code */}
+              <div className="bg-white p-2 rounded-xs mb-3">
+                {shareQrDataUrl ? (
+                  <img src={shareQrDataUrl} alt="QR Code" className="w-[200px] h-[200px]" />
+                ) : (
+                  <div className="w-[200px] h-[200px] bg-[#13141c] flex items-center justify-center text-[#8a8a9e] text-xs font-mono">生成中...</div>
+                )}
+              </div>
+
+              <p className="text-[10px] text-[#8a8a9e] font-mono mb-3 text-center">微信扫码查看发布详情</p>
+
+              {/* Link copy row */}
+              <div className="flex items-center gap-2 w-full">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}?posting=${sharePost.id}`}
+                  className="flex-1 h-9 px-3 bg-[#13141c] border border-[#323344] rounded-xs text-xs text-[#8a8a9e] font-mono outline-none"
+                />
+                <button
+                  onClick={handleCopyLink}
+                  className={`h-9 px-3 font-mono text-xs rounded-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                    isCopied
+                      ? 'bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]'
+                      : 'bg-[#323344] text-white border border-transparent hover:border-[#00F0FF]/40'
+                  }`}
+                >
+                  {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{isCopied ? '已复制' : '复制'}</span>
+                </button>
               </div>
             </motion.div>
           </div>

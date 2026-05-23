@@ -34,6 +34,7 @@ export interface Posting {
   estArrival?: string;
   moq?: string;
   timestamp: string;
+  expiresAt?: string;
   authorName?: string;
   userId?: string;
   comments?: Comment[];
@@ -67,7 +68,7 @@ export interface SystemLog {
   status: 'critical' | 'alert' | 'success';
 }
 
-export type TabType = 'lobby' | 'publish' | 'messages' | 'terminal';
+export type TabType = 'lobby' | 'publish' | 'dashboard' | 'messages' | 'terminal';
 
 export interface UserProfile {
   nickname: string;

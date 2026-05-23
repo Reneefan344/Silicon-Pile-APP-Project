@@ -11,7 +11,8 @@ import { LobbyView } from "./components/LobbyView";
 import { PublishView } from "./components/PublishView";
 import { MessagesView } from "./components/MessagesView";
 import { TerminalView } from "./components/TerminalView";
-import { Layers, PlusSquare, Terminal, User, Grid2X2 } from "lucide-react";
+import { DashboardView } from "./components/DashboardView";
+import { Layers, PlusSquare, Terminal, User, Grid2X2, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 function AppContent() {
@@ -143,6 +144,7 @@ function AppContent() {
           >
             {activeTab === 'lobby' && <LobbyView />}
             {activeTab === 'publish' && <PublishView />}
+            {activeTab === 'dashboard' && <DashboardView />}
             {activeTab === 'messages' && <MessagesView />}
             {activeTab === 'terminal' && <TerminalView />}
           </motion.div>
@@ -151,12 +153,25 @@ function AppContent() {
 
       {/* Sticky footer tab persistent bar */}
       <nav className="fixed bottom-0 left-0 w-full z-40 bg-[#0D0E12] border-t border-[#323344] select-none h-16 shrink-0 shadow-2xl">
-        <div className="flex justify-around items-center h-full max-w-2xl mx-auto px-2">
-          
-          {/* Tab 1: Lobby */}
+        <div className="flex justify-around items-center h-full max-w-2xl mx-auto px-1">
+
+          {/* Tab 1: Dashboard */}
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex flex-col items-center justify-center flex-1 h-full border-t-2 cursor-pointer transition-all ${
+              activeTab === 'dashboard'
+                ? "border-[#00F0FF] text-[#00F0FF] scale-100 font-bold"
+                : "border-transparent text-[#8a8a9e] hover:bg-[#323344]/30"
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span className="font-sans text-[10px] mt-1 tracking-wider uppercase">看板</span>
+          </button>
+
+          {/* Tab 2: Lobby */}
           <button
             onClick={() => setActiveTab('lobby')}
-            className={`flex flex-col items-center justify-center w-20 h-full border-t-2 cursor-pointer transition-all ${
+            className={`flex flex-col items-center justify-center flex-1 h-full border-t-2 cursor-pointer transition-all ${
               activeTab === 'lobby'
                 ? "border-[#00F0FF] text-[#00F0FF] scale-100 font-bold"
                 : "border-transparent text-[#8a8a9e] hover:bg-[#323344]/30"
@@ -165,11 +180,11 @@ function AppContent() {
             <Layers className="w-5 h-5" />
             <span className="font-sans text-[10px] mt-1 tracking-wider uppercase">大厅</span>
           </button>
-          
-          {/* Tab 2: Publish */}
+
+          {/* Tab 3: Publish */}
           <button
             onClick={() => setActiveTab('publish')}
-            className={`flex flex-col items-center justify-center w-20 h-full border-t-2 cursor-pointer transition-all ${
+            className={`flex flex-col items-center justify-center flex-1 h-full border-t-2 cursor-pointer transition-all ${
               activeTab === 'publish'
                 ? "border-[#00F0FF] text-[#00F0FF] scale-100 font-bold bg-[#323344]/20"
                 : "border-transparent text-[#8a8a9e] hover:bg-[#323344]/30"
@@ -178,11 +193,11 @@ function AppContent() {
             <PlusSquare className="w-5 h-5" />
             <span className="font-sans text-[10px] mt-1 tracking-wider uppercase">发布</span>
           </button>
-          
-          {/* Tab 3: Messages */}
+
+          {/* Tab 4: Messages */}
           <button
             onClick={() => setActiveTab('messages')}
-            className={`flex flex-col items-center justify-center w-20 h-full border-t-2 cursor-pointer transition-all relative ${
+            className={`flex flex-col items-center justify-center flex-1 h-full border-t-2 cursor-pointer transition-all relative ${
               activeTab === 'messages'
                 ? "border-[#00F0FF] text-[#00F0FF] scale-100 font-bold"
                 : "border-transparent text-[#8a8a9e] hover:bg-[#323344]/30"
@@ -190,17 +205,17 @@ function AppContent() {
           >
             <Terminal className="w-5 h-5" />
             <span className="font-sans text-[10px] mt-1 tracking-wider uppercase">消息</span>
-            
+
             {/* Blinking notification led */}
             {totalUnread > 0 && (
               <span className="absolute top-2.5 right-6 w-2 h-2 rounded-full bg-[#ff5500] shadow-[0_0_8px_#ff5500] animate-pulse" />
             )}
           </button>
-          
-          {/* Tab 4: Terminal profile */}
+
+          {/* Tab 5: Terminal profile */}
           <button
             onClick={() => setActiveTab('terminal')}
-            className={`flex flex-col items-center justify-center w-20 h-full border-t-2 cursor-pointer transition-all ${
+            className={`flex flex-col items-center justify-center flex-1 h-full border-t-2 cursor-pointer transition-all ${
               activeTab === 'terminal'
                 ? "border-[#00F0FF] text-[#00F0FF] scale-100 font-bold"
                 : "border-transparent text-[#8a8a9e] hover:bg-[#323344]/30"
@@ -209,7 +224,7 @@ function AppContent() {
             <User className="w-5 h-5" />
             <span className="font-sans text-[10px] mt-1 tracking-wider uppercase">终端</span>
           </button>
-          
+
         </div>
       </nav>
 
