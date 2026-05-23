@@ -127,11 +127,11 @@ async function startServer() {
     }
   });
 
-  // OCR endpoint — extract GPU spec fields from uploaded image via Gemini vision
+  // OCR endpoint — extract GPU spec fields from uploaded image via ZhipuAI GLM-4V
   app.post("/api/ocr", async (req, res) => {
     try {
       const { imageBase64, fileName } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.ZHIPU_API_KEY;
 
       if (!imageBase64 || typeof imageBase64 !== "string") {
         res.status(400).json({ error: "缺少图片数据" });
@@ -139,11 +139,11 @@ async function startServer() {
       }
 
       if (!apiKey || apiKey.trim() === "") {
-        console.warn("GEMINI_API_KEY missing — returning mock OCR result");
+        console.warn("ZHIPU_API_KEY missing — returning mock OCR result");
         res.json({
           fields: {},
           mock: true,
-          note: "API Key 未配置，无法进行AI识别。请在 .env.local 中设置 GEMINI_API_KEY。"
+          note: "API Key 未配置，无法进行AI识别。请在 .env.local 中设置 ZHIPU_API_KEY。"
         });
         return;
       }
@@ -166,47 +166,37 @@ async function startServer() {
 
 只返回JSON，不要任何解释。示例：{"title":"NVIDIA H800","gpu":"H800","cpu":"","memory":"","storage":"","network":"","qty":"8台","moq":"","delivery":"现货","location":"深圳"}`;
 
-      // Strip data URL prefix if present to get raw base64
-      let rawBase64 = imageBase64;
-      let mimeType = "image/png";
-      if (imageBase64.startsWith("data:")) {
-        const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
-        if (match) {
-          mimeType = match[1];
-          rawBase64 = match[2];
-        }
-      }
-
-      const proxyUrl = `https://morning-haze-244c.415758624.workers.dev/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      const response = await fetch(proxyUrl, {
+      const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
         body: JSON.stringify({
-          contents: [
+          model: "glm-4v",
+          messages: [
             {
               role: "user",
-              parts: [
-                { inlineData: { mimeType, data: rawBase64 } },
-                { text: extractionPrompt },
+              content: [
+                { type: "image_url", image_url: { url: imageBase64 } },
+                { type: "text", text: extractionPrompt },
               ],
             },
           ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 1024,
-          },
+          temperature: 0.2,
+          max_tokens: 1024,
         }),
       });
 
       if (!response.ok) {
         const errBody = await response.text();
-        console.error("Gemini OCR Error:", response.status, errBody.slice(0, 300));
-        res.status(502).json({ error: `Gemini API returned ${response.status}` });
+        console.error("Zhipu OCR Error:", response.status, errBody.slice(0, 300));
+        res.status(502).json({ error: `GLM-4V API returned ${response.status}` });
         return;
       }
 
       const result = await response.json();
-      const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const rawText = result.choices?.[0]?.message?.content || "";
 
       let jsonStr = rawText.trim();
       if (jsonStr.startsWith("```")) {
@@ -224,7 +214,7 @@ async function startServer() {
 
       res.json({ fields });
     } catch (err: any) {
-      console.error("Gemini OCR Error:", err);
+      console.error("Zhipu OCR Error:", err);
       res.status(500).json({ error: "OCR识别服务异常", message: err.message });
     }
   });
