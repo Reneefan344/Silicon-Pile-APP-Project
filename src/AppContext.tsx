@@ -403,17 +403,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Auth functions
   const login = async (phone: string, password: string): Promise<{ error?: string }> => {
+    // Ensure any stale session from a previous logout is fully cleared
+    await supabase.auth.getSession();
+
     // Look up email by phone number from profiles (unauthenticated, RLS allows public read)
-    const { data: profileData, error: queryError } = await supabase
+    let { data: profileData, error: queryError } = await supabase
       .from('profiles')
       .select('email')
       .eq('phone', phone)
       .limit(1)
       .maybeSingle();
 
+    // If query failed due to stale/invalid session, force-clear and retry once
     if (queryError) {
-      console.error("Phone lookup error:", queryError);
-      return { error: "系统查询异常，请稍后重试" };
+      await supabase.auth.signOut();
+      const retry = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('phone', phone)
+        .limit(1)
+        .maybeSingle();
+      if (retry.error) {
+        console.error("Phone lookup error (retry):", retry.error);
+        return { error: "系统查询异常，请稍后重试" };
+      }
+      profileData = retry.data;
     }
 
     if (!profileData?.email) {
@@ -495,7 +509,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' });
+    // Double-clear to ensure no stale session lingers
     setSession(null);
     setUserProfileState(null);
     setRegisteredState(false);
