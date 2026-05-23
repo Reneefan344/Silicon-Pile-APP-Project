@@ -106,6 +106,25 @@ CREATE TABLE IF NOT EXISTS public.system_logs (
 CREATE INDEX IF NOT EXISTS idx_profiles_phone ON public.profiles(phone);
 
 -- ============================================================
+-- 8. Escalations table (human agent ticketing)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.escalations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  thread_id TEXT NOT NULL,
+  original_thread_id TEXT,
+  context TEXT DEFAULT '',
+  status TEXT CHECK (status IN ('pending', 'replied', 'closed')) DEFAULT 'pending',
+  agent_reply TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.escalations ENABLE ROW LEVEL SECURITY;
+-- escalations is accessed via service_role key on server side, so RLS is restrictive for anon users
+CREATE POLICY "Users can view own escalations" ON public.escalations
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- ============================================================
 -- RLS Policies
 -- ============================================================
 

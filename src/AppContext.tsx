@@ -36,6 +36,7 @@ interface AppContextProps {
   toggleBookmark: (id: string) => Promise<void>;
   sendChatMessage: (threadId: string, text: string) => Promise<void>;
   submitInquiry: (posting: Posting, inquiryText: string) => Promise<string>;
+  escalateToHuman: (originalThreadId: string) => Promise<void>;
   clearUnreads: (threadId: string) => Promise<void>;
   addLogMessage: (log: Omit<SystemLog, 'id' | 'timestamp'>) => Promise<void>;
   login: (phone: string, password: string) => Promise<{ error?: string }>;
@@ -965,6 +966,122 @@ ${noteLabel}: "${inquiryText}"`;
     setSystemLogs((prev) => [newLog, ...prev]);
   };
 
+  const escalateToHuman = async (originalThreadId: string) => {
+    if (!session?.user) return;
+
+    const humanThreadId = `human-${Date.now()}`;
+    const timestamp = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+
+    // Collect last 5 messages from original thread for context
+    const originalThread = chats.find((c) => c.id === originalThreadId);
+    const contextMessages = originalThread ? originalThread.messages.slice(-5) : [];
+    const contextText = contextMessages
+      .map((m) => `[${m.sender === "user" ? "用户" : "客服"} ${m.timestamp}] ${m.text}`)
+      .join("\n");
+
+    const firstMsg: ChatMessage = {
+      id: `msg-system-${Date.now()}`,
+      sender: "operator",
+      text: "已转接人工客服，客服看到消息后会第一时间回复您。",
+      timestamp,
+    };
+
+    // Create thread in Supabase
+    await supabase.from("chat_threads").insert({
+      id: humanThreadId,
+      user_id: session.user.id,
+      name: "人工客服",
+      avatar: "",
+      avatar_alt: "人工客服",
+      last_message: firstMsg.text,
+      unread_count: 0,
+      status_text: "人工客服 · 待回复",
+    });
+
+    await supabase.from("chat_messages").insert({
+      thread_id: humanThreadId,
+      user_id: session.user.id,
+      sender: "operator",
+      text: firstMsg.text,
+    });
+
+    const newThread: ChatThread = {
+      id: humanThreadId,
+      name: "人工客服",
+      avatar: "",
+      avatarAlt: "人工客服",
+      lastMessage: firstMsg.text,
+      unreadCount: 0,
+      statusText: "人工客服 · 待回复",
+      messages: [firstMsg],
+    };
+
+    setChats((prev) => [newThread, ...prev]);
+
+    // Call escalate API
+    try {
+      await fetch("/api/escalate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: humanThreadId,
+          originalThreadId,
+          context: contextText,
+          userId: session.user.id,
+        }),
+      });
+    } catch (err) {
+      console.error("escalate API error:", err);
+    }
+  };
+
+  // Poll for new messages on human- threads every 5 seconds
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const humanThreads = chats.filter((c) => c.id.startsWith("human-"));
+    if (humanThreads.length === 0) return;
+
+    const interval = setInterval(async () => {
+      const { data: freshMessages } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .in(
+          "thread_id",
+          humanThreads.map((t) => t.id)
+        )
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: true });
+
+      if (!freshMessages) return;
+
+      setChats((prevChats) =>
+        prevChats.map((chat) => {
+          if (!chat.id.startsWith("human-")) return chat;
+          const existingIds = new Set(chat.messages.map((m) => m.id));
+          const threadMsgs = freshMessages.filter((m: any) => m.thread_id === chat.id);
+          const newMsgs = threadMsgs.filter((m: any) => !existingIds.has(m.id));
+          if (newMsgs.length === 0) return chat;
+          const mappedNew: ChatMessage[] = newMsgs.map((m: any) => ({
+            id: m.id,
+            sender: m.sender as "user" | "operator",
+            text: m.text,
+            timestamp: formatTimestamp(m.created_at),
+          }));
+          const allMsgs = [...chat.messages, ...mappedNew];
+          const lastMsg = allMsgs[allMsgs.length - 1];
+          return {
+            ...chat,
+            messages: allMsgs,
+            lastMessage: lastMsg?.text || chat.lastMessage,
+          };
+        })
+      );
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [chats.filter((c) => c.id.startsWith("human-")).length, session]);
+
   return (
     <AppContext.Provider
       value={{
@@ -997,6 +1114,7 @@ ${noteLabel}: "${inquiryText}"`;
         toggleBookmark,
         sendChatMessage,
         submitInquiry,
+        escalateToHuman,
         clearUnreads,
         addLogMessage,
         login,

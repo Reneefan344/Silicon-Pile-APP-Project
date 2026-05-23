@@ -415,10 +415,10 @@ export const TerminalView: React.FC = () => {
                     <div className="bg-[#ff5500]/10 border border-[#ff5500]/30 p-3 rounded-xs text-xs flex flex-col gap-1.5 leading-relaxed">
                       <p className="text-[#ff5500] font-bold font-sans flex items-center gap-1">
                         <AlertCircle className="w-4 h-4 shrink-0" />
-                        客服协助职能申明 (Support Notice)
+                        使用提示
                       </p>
                       <p className="text-gray-400 font-sans text-[11px]">
-                        平台客服专属通道<span className="text-white font-semibold">仅协助有关此平台的使用帮助</span>、登录安全密钥重构及基本操作规则解答。如涉及<span className="text-[#00dbe9] font-semibold">具体的算力参数详情、起订与履约单价谈判、合同交割等消息内容</span>，请您通过大厅选择对应卡片并点击<span className="text-white">【发起询价】</span>或<span className="text-white">【接洽沟通】</span>，直接跨节点联系发布用户开启一对一商务谈判。
+                        客服可协助平台操作和账户问题。具体算力参数、价格谈判、合同交割等商务事宜，请通过大厅卡片直接联系发布方。
                       </p>
                     </div>
 

@@ -1,10 +1,18 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
+
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "admin123";
+const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
+  : null;
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 const CHAT_MODEL = "deepseek-chat";
@@ -42,6 +50,182 @@ const getSystemInstruction = (operatorId: string) => {
 
   return baseRules;
 };
+
+const AGENT_HTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>硅堆 - 人工客服工作台</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:monospace;background:#0c0d1c;color:#e1e0f7;padding:20px;min-height:100vh}
+    h1{color:#00dbe9;font-size:20px;margin-bottom:8px;letter-spacing:2px}
+    .subtitle{color:#8a8a9e;font-size:11px;margin-bottom:24px}
+    .login-box{background:#1d1e2e;border:1px solid #323344;padding:20px;max-width:400px;margin:40px auto;border-radius:4px}
+    .login-box input{width:100%;padding:10px 12px;background:#0c0d1c;border:1px solid #323344;color:#e1e0f7;font-family:monospace;font-size:13px;border-radius:2px;margin-bottom:12px;outline:none}
+    .login-box input:focus{border-color:#00dbe9}
+    .login-box button{width:100%;padding:10px;background:#00dbe9;color:#0c0d1c;border:none;font-family:monospace;font-size:13px;font-weight:bold;cursor:pointer;border-radius:2px}
+    .login-box button:hover{background:#00eefc}
+    .error{color:#ff5500;font-size:12px;margin-top:8px;display:none}
+    .main{display:none;max-width:900px;margin:0 auto}
+    .ticket{border:1px solid #323344;background:#1d1e2e;margin-bottom:12px;border-radius:4px;overflow:hidden}
+    .ticket-header{padding:12px 16px;background:#13141c;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border-bottom:1px solid #323344}
+    .ticket-header:hover{background:#1a1b2a}
+    .ticket-id{color:#00dbe9;font-size:11px;font-weight:bold}
+    .ticket-status{font-size:10px;padding:2px 8px;border-radius:2px;font-weight:bold}
+    .status-pending{background:#ff5500/20;color:#ff5500;border:1px solid #ff5500/40}
+    .status-replied{background:#00dbe9/20;color:#00dbe9;border:1px solid #00dbe9/40}
+    .status-closed{background:#8a8a9e/20;color:#8a8a9e}
+    .ticket-body{display:none;padding:16px;max-height:400px;overflow-y:auto}
+    .ticket-body.open{display:block}
+    .msg{margin-bottom:10px;padding:8px 12px;border-radius:2px;font-size:12px;line-height:1.6;max-width:85%}
+    .msg.user{align-self:flex-end;background:#ff5500/10;border:1px solid #ff5500/30;color:#ffdbcf;margin-left:auto}
+    .msg.operator{align-self:flex-start;background:#13141c;border:1px solid #323344;color:#e1e0f7}
+    .msg-label{font-size:10px;color:#8a8a9e;margin-bottom:4px}
+    .reply-form{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #323344}
+    .reply-form textarea{flex:1;padding:8px 10px;background:#0c0d1c;border:1px solid #323344;color:#e1e0f7;font-family:monospace;font-size:12px;resize:vertical;min-height:60px;border-radius:2px;outline:none}
+    .reply-form textarea:focus{border-color:#00dbe9}
+    .reply-form button{padding:8px 16px;background:#ff5500;color:#fff;border:none;font-family:monospace;font-size:12px;font-weight:bold;cursor:pointer;border-radius:2px;white-space:nowrap}
+    .reply-form button:hover{background:#ff6a20}
+    .close-btn{padding:6px 12px;background:transparent;color:#8a8a9e;border:1px solid #323344;font-family:monospace;font-size:11px;cursor:pointer;border-radius:2px;margin-right:8px}
+    .close-btn:hover{color:#fff;border-color:#8a8a9e}
+    .empty-state{text-align:center;padding:40px;color:#8a8a9e;font-size:13px}
+    .refresh{color:#00dbe9;font-size:11px;cursor:pointer;text-decoration:underline;margin-bottom:16px;display:inline-block}
+    .timestamp{font-size:9px;color:#8a8a9e;margin-top:4px}
+  </style>
+</head>
+<body>
+  <div class="login-box" id="loginBox">
+    <h1>硅堆 · 客服工作台</h1>
+    <p class="subtitle">输入 ADMIN_TOKEN 以查看待处理工单</p>
+    <input id="tokenInput" type="password" placeholder="ADMIN_TOKEN" onkeydown="if(event.key==='Enter')login()">
+    <button onclick="login()">登录</button>
+    <div class="error" id="loginError">TOKEN 无效</div>
+  </div>
+
+  <div class="main" id="mainPanel">
+    <h1>硅堆 · 客服工作台</h1>
+    <p class="subtitle">人工客服工单处理</p>
+    <span class="refresh" onclick="loadEscalations()">刷新列表</span>
+    <div id="ticketList"></div>
+  </div>
+
+  <script>
+    let token = "";
+    const ADMIN_TOKEN = "${ADMIN_TOKEN}";
+
+    function login() {
+      const inp = document.getElementById("tokenInput").value.trim();
+      if (!inp) return;
+      token = inp;
+      if (token !== ADMIN_TOKEN) {
+        document.getElementById("loginError").style.display = "block";
+        return;
+      }
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("mainPanel").style.display = "block";
+      loadEscalations();
+    }
+
+    async function loadEscalations() {
+      try {
+        const res = await fetch("/api/agent/escalations?token=" + encodeURIComponent(token));
+        if (res.status === 401) { alert("TOKEN过期，请刷新页面重新登录"); return; }
+        const data = await res.json();
+        renderTickets(data);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderTickets(escalations) {
+      const el = document.getElementById("ticketList");
+      if (!escalations || escalations.length === 0) {
+        el.innerHTML = '<div class="empty-state">暂无待处理工单</div>';
+        return;
+      }
+      el.innerHTML = escalations.map((esc, i) => {
+        const statusClass = esc.status === "pending" ? "status-pending" : esc.status === "replied" ? "status-replied" : "status-closed";
+        const statusText = esc.status === "pending" ? "待处理" : esc.status === "replied" ? "已回复" : "已关闭";
+        const msgs = esc.messages || [];
+        const msgsHtml = msgs.map(m => {
+          const cls = m.sender === "user" ? "user" : "operator";
+          const label = m.sender === "user" ? "用户" : "客服/AI";
+          const ts = m.created_at ? new Date(m.created_at).toLocaleString("zh-CN") : "";
+          return '<div class="msg '+cls+'"><div class="msg-label">'+label+'</div>'+escHtml(m.text)+'<div class="timestamp">'+ts+'</div></div>';
+        }).join("");
+        const isOpen = esc.status === "pending" ? " open" : "";
+        return '<div class="ticket">' +
+          '<div class="ticket-header" onclick="toggleTicket(this)">' +
+            '<span class="ticket-id"># + esc.thread_id + '</span>' +
+            '<span class="ticket-status '+statusClass+'">'+statusText+'</span>' +
+          '</div>' +
+          '<div class="ticket-body'+isOpen+'">' +
+            (esc.context ? '<div style="color:#8a8a9e;font-size:11px;margin-bottom:8px;padding:8px;background:#0c0d1c;border-radius:2px">'+escHtml(esc.context)+'</div>' : '') +
+            '<div style="margin-bottom:8px">'+msgsHtml+'</div>' +
+            (esc.status !== "closed" ? '<div class="reply-form">' +
+              '<textarea id="reply-'+i+'" placeholder="输入回复..."></textarea>' +
+              '<button onclick="sendReply(\''+esc.id+'\',\''+esc.thread_id+'\',\''+esc.user_id+'\','+i+')">发送回复</button>' +
+              (esc.status === "pending" ? '<button class="close-btn" onclick="closeTicket(\''+esc.id+'\',\''+esc.thread_id+'\',\''+esc.user_id+'\')">关闭工单</button>' : '') +
+            '</div>' : '<div style="color:#8a8a9e;font-size:11px;text-align:center;padding:8px">此工单已关闭</div>') +
+          '</div>' +
+        '</div>';
+      }).join("");
+    }
+
+    function escHtml(text) {
+      return (text || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\\n/g,"<br>");
+    }
+
+    function toggleTicket(header) {
+      const body = header.nextElementSibling;
+      body.classList.toggle("open");
+    }
+
+    async function sendReply(escId, threadId, userId, idx) {
+      const textarea = document.getElementById("reply-" + idx);
+      const replyText = textarea.value.trim();
+      if (!replyText) return;
+      try {
+        const res = await fetch("/api/agent/reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+          body: JSON.stringify({ escalationId: escId, threadId, userId, replyText, token })
+        });
+        const data = await res.json();
+        if (data.success) {
+          textarea.value = "";
+          loadEscalations();
+        } else {
+          alert("发送失败: " + (data.error || "未知错误"));
+        }
+      } catch (e) {
+        alert("网络错误");
+      }
+    }
+
+    async function closeTicket(escId, threadId, userId) {
+      if (!confirm("确认关闭此工单？")) return;
+      try {
+        const res = await fetch("/api/agent/reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+          body: JSON.stringify({ escalationId: escId, threadId, userId, replyText: "[系统] 此工单已被客服关闭。", token, closeTicket: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadEscalations();
+        } else {
+          alert("关闭失败: " + (data.error || "未知错误"));
+        }
+      } catch (e) {
+        alert("网络错误");
+      }
+    }
+  </script>
+</body>
+</html>`;
 
 async function startServer() {
   const app = express();
@@ -217,6 +401,143 @@ async function startServer() {
       console.error("Zhipu OCR Error:", err);
       res.status(500).json({ error: "OCR识别服务异常", message: err.message });
     }
+  });
+
+  // Escalate to human agent
+  app.post("/api/escalate", async (req, res) => {
+    try {
+      const { threadId, originalThreadId, context, userId } = req.body;
+      if (!threadId) {
+        res.status(400).json({ error: "缺少 threadId" });
+        return;
+      }
+
+      if (!supabaseAdmin) {
+        res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY 未配置" });
+        return;
+      }
+
+      const { error } = await supabaseAdmin.from("escalations").insert({
+        thread_id: threadId,
+        user_id: userId || null,
+        original_thread_id: originalThreadId || null,
+        context: context || "",
+        status: "pending",
+      });
+
+      if (error) {
+        console.error("escalate insert error:", error);
+        res.status(500).json({ error: error.message });
+        return;
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Escalate API Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Agent: list pending escalations
+  app.get("/api/agent/escalations", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "") || req.query.token;
+      if (token !== ADMIN_TOKEN) {
+        res.status(401).json({ error: "未授权：ADMIN_TOKEN 无效" });
+        return;
+      }
+
+      if (!supabaseAdmin) {
+        res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY 未配置" });
+        return;
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from("escalations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
+
+      // Fetch thread messages for each escalation
+      const result = await Promise.all(
+        (data || []).map(async (esc: any) => {
+          const { data: msgs } = await supabaseAdmin!
+            .from("chat_messages")
+            .select("*")
+            .eq("thread_id", esc.thread_id)
+            .order("created_at", { ascending: true });
+          return { ...esc, messages: msgs || [] };
+        })
+      );
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Agent: reply to an escalation
+  app.post("/api/agent/reply", async (req, res) => {
+    try {
+      const token = req.headers.authorization?.replace("Bearer ", "") || req.body.token;
+      if (token !== ADMIN_TOKEN) {
+        res.status(401).json({ error: "未授权：ADMIN_TOKEN 无效" });
+        return;
+      }
+
+      const { escalationId, threadId, userId, replyText, closeTicket } = req.body;
+      if (!escalationId || !threadId || !userId || !replyText) {
+        res.status(400).json({ error: "缺少必填字段" });
+        return;
+      }
+
+      if (!supabaseAdmin) {
+        res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY 未配置" });
+        return;
+      }
+
+      // Insert reply as operator message
+      const msgId = crypto.randomUUID();
+      const { error: msgError } = await supabaseAdmin.from("chat_messages").insert({
+        id: msgId,
+        thread_id: threadId,
+        user_id: userId,
+        sender: "operator",
+        text: replyText,
+      });
+
+      if (msgError) {
+        res.status(500).json({ error: msgError.message });
+        return;
+      }
+
+      // Update thread last_message
+      await supabaseAdmin
+        .from("chat_threads")
+        .update({ last_message: replyText, unread_count: 0 })
+        .eq("id", threadId)
+        .eq("user_id", userId);
+
+      // Update escalation status
+      const newStatus = closeTicket ? "closed" : "replied";
+      await supabaseAdmin
+        .from("escalations")
+        .update({ status: newStatus, agent_reply: replyText })
+        .eq("id", escalationId);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Serve agent workspace page
+  app.get("/agent", (_req, res) => {
+    res.send(AGENT_HTML);
   });
 
   // Serve static assets or use development Vite server

@@ -197,11 +197,6 @@ export const DashboardView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Publisher */}
-                  <div className="flex justify-between items-center pt-2 border-t border-[#323344]/20">
-                    <span className="text-[9px] text-gray-500 font-mono">发布者: {post.authorName || '-'}</span>
-                    <span className="text-[9px] text-[#00F0FF] font-mono opacity-0 group-hover:opacity-100 transition-opacity">点击查看 →</span>
-                  </div>
                 </div>
               </article>
             );

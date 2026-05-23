@@ -22,7 +22,7 @@ const CommentInputForm: React.FC<{ postId: string }> = ({ postId }) => {
         type="text"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="发表公开讨论或验证算力详情..."
+        placeholder="聊聊这批算力..."
         className="flex-1 bg-[#13141c] border border-[#323344] focus:border-[#00F0FF] text-xs text-[#e1e0f7] px-2.5 h-8 rounded-xs outline-none placeholder-[#8a8a9e]/30 font-sans"
         maxLength={200}
       />
@@ -47,7 +47,10 @@ export const LobbyView: React.FC = () => {
     submitInquiry,
     addLogMessage,
     deletePosting,
-    session
+    session,
+    setActiveTab,
+    setActiveChatThreadId,
+    setActiveMessageSubTab
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,7 +59,6 @@ export const LobbyView: React.FC = () => {
   // Inquiry form in modal
   const [inquiryText, setInquiryText] = useState("");
   const [isSubmittingInquiry, setIsSubmittingInquiry] = useState(false);
-  const [isSuccessInquiry, setIsSuccessInquiry] = useState(false);
 
   // Share state
   const [sharePost, setSharePost] = useState<Posting | null>(null);
@@ -77,7 +79,6 @@ export const LobbyView: React.FC = () => {
   const handleOpenDetail = (post: Posting) => {
     setSelectedPost(post);
     setInquiryText("");
-    setIsSuccessInquiry(false);
   };
 
   const handleShare = async (post: Posting) => {
@@ -128,10 +129,14 @@ export const LobbyView: React.FC = () => {
       ? "收到！我对该批算力货源非常感兴趣，请问合同签署要点以及交割带宽限制是什么？期待即刻对接参数。" 
       : "收到！我们手头有充足的物理机位可立刻供给支持您的算力需求。请问托管细节与多签手续何时启动？");
       
-    await submitInquiry(selectedPost, msgNote);
+    const threadId = await submitInquiry(selectedPost, msgNote);
 
     setIsSubmittingInquiry(false);
-    setIsSuccessInquiry(true);
+    setSelectedPost(null);
+    window.history.replaceState({}, '', '/');
+    setActiveMessageSubTab("chat");
+    setActiveChatThreadId(threadId);
+    setActiveTab("messages");
   };
 
   const handleDownloadAttachment = (post: Posting) => {
@@ -258,6 +263,7 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
             return (
               <article
                 key={post.id}
+                id={`posting-${post.id}`}
                 className={`bg-[#0D0E12] border-l-[3px] ${leftBorderClass} border-r border-t border-b border-[#323344]/60 rounded-sm flex flex-col relative overflow-hidden group hover:border-[#00F0FF]/40 transition-all duration-300 shadow-lg`}
               >
                 {/* Decorative circuit line on hover */}
@@ -471,7 +477,15 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                     </button>
                   )}
                   <button
-                    onClick={() => { setSelectedPost(null); window.history.replaceState({}, '', '/'); }}
+                    onClick={() => {
+                      const postId = selectedPost?.id;
+                      setSelectedPost(null);
+                      window.history.replaceState({}, '', '/');
+                      if (postId) {
+                        const el = document.getElementById(`posting-${postId}`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }}
                     className="text-[#8a8a9e] hover:text-[#ff5500] font-mono text-lg p-1 cursor-pointer"
                   >
                     ✕
@@ -626,32 +640,23 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                 </div>
 
                 {/* Submit dialogue form */}
-                {isSuccessInquiry ? (
-                  <div className="bg-[#13141c] p-4 text-center border border-[#00F0FF] rounded-xs">
-                    <div className="text-[#00F0FF] font-bold tracking-widest text-sm flex flex-col gap-2 animate-fade-in-up">
-                      <span>私聊发送成功</span>
-                      <span className="text-gray-400 font-normal font-sans text-xs">请等待对方回复</span>
-                    </div>
-                  </div>
-                ) : (
-                  <form onSubmit={handleSubmitInquiry} className="flex flex-col gap-2 border-t border-[#323344] pt-3 shrink-0">
-                    <label className="font-mono text-xs text-[#8a8a9e]">私聊</label>
-                    <textarea
-                      value={inquiryText}
-                      onChange={(e) => setInquiryText(e.target.value)}
-                      className="w-full bg-[#13141c] border border-[#323344] focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF]/50 min-h-[66px] p-2.5 font-sans text-xs text-[#e1e0f7] rounded-sm focus:outline-none placeholder-[#8a8a9e]/40"
-                      placeholder="输入您的消息..."
-                    />
+                <form onSubmit={handleSubmitInquiry} className="flex flex-col gap-2 border-t border-[#323344] pt-3 shrink-0">
+                  <label className="font-mono text-xs text-[#8a8a9e]">私聊</label>
+                  <textarea
+                    value={inquiryText}
+                    onChange={(e) => setInquiryText(e.target.value)}
+                    className="w-full bg-[#13141c] border border-[#323344] focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF]/50 min-h-[66px] p-2.5 font-sans text-xs text-[#e1e0f7] rounded-sm focus:outline-none placeholder-[#8a8a9e]/40"
+                    placeholder="输入您的消息..."
+                  />
 
-                    <button
-                      type="submit"
-                      disabled={isSubmittingInquiry}
-                      className="w-full h-10 flex items-center justify-center bg-[#ff5500] hover:bg-[#aa3600] text-white font-bold font-mono tracking-widest text-xs transition-colors rounded-xs cursor-pointer"
-                    >
-                      {isSubmittingInquiry ? "发送中..." : "发送私聊"}
-                    </button>
-                  </form>
-                )}
+                  <button
+                    type="submit"
+                    disabled={isSubmittingInquiry}
+                    className="w-full h-10 flex items-center justify-center bg-[#ff5500] hover:bg-[#aa3600] text-white font-bold font-mono tracking-widest text-xs transition-colors rounded-xs cursor-pointer"
+                  >
+                    {isSubmittingInquiry ? "发送中..." : "发送私聊"}
+                  </button>
+                </form>
               </div>
             </div>
           </div>

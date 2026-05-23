@@ -15,11 +15,13 @@ export const MessagesView: React.FC = () => {
     sendChatMessage,
     isLoadingChat,
     clearUnreads,
-    userProfile
+    userProfile,
+    escalateToHuman
   } = useApp();
 
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [hasEscalated, setHasEscalated] = useState(false);
 
   const filteredLogs = systemLogs;
 
@@ -27,6 +29,20 @@ export const MessagesView: React.FC = () => {
   const activeThread = useMemo(() => {
     return chats.find(c => c.id === activeChatThreadId) || null;
   }, [chats, activeChatThreadId]);
+
+  // Detect if last operator message indicates AI cannot answer
+  const needsHumanAgent = useMemo(() => {
+    if (!activeThread || activeThread.id.startsWith("human-")) return false;
+    const lastOpMsg = [...activeThread.messages].reverse().find((m) => m.sender === "operator");
+    if (!lastOpMsg) return false;
+    return /抱歉.{0,10}(无法|不能|没办法|回答|提供)/.test(lastOpMsg.text);
+  }, [activeThread?.messages]);
+
+  const handleEscalate = async () => {
+    if (!activeChatThreadId || hasEscalated) return;
+    setHasEscalated(true);
+    await escalateToHuman(activeChatThreadId);
+  };
 
   // Scroll to bottom of chat log
   useEffect(() => {
@@ -235,6 +251,19 @@ export const MessagesView: React.FC = () => {
                     
                     <div ref={chatEndRef} />
                   </div>
+
+                  {/* Human agent escalation button */}
+                  {needsHumanAgent && !hasEscalated && (
+                    <div className="bg-[#1d1e2e]/80 border-t border-[#ff5500]/30 p-3 shrink-0 flex items-center justify-center gap-2">
+                      <span className="text-[11px] text-[#8a8a9e] font-mono">AI无法解答此问题</span>
+                      <button
+                        onClick={handleEscalate}
+                        className="bg-[#ff5500] hover:bg-[#ff6a20] text-white font-mono text-xs font-bold px-4 py-1.5 rounded-xs transition-colors cursor-pointer"
+                      >
+                        转人工客服
+                      </button>
+                    </div>
+                  )}
 
                   {/* Input dialog actions text entry */}
                   <form onSubmit={handleSendChat} className="bg-[#1d1e2e]/80 border-t border-[#323344] p-3 shrink-0 flex gap-2.5 items-center">
