@@ -2,13 +2,13 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
-const QWEN_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-const CHAT_MODEL = "qwen-plus";
-const OCR_MODEL = "qwen-vl-max";
+const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
+const CHAT_MODEL = "deepseek-chat";
 
 const getSystemInstruction = (operatorId: string) => {
   const baseRules = `你是「硅堆(Silicon Pile)」算力交易平台的GUIDUI客服。
@@ -54,10 +54,10 @@ async function startServer() {
   app.post("/api/chat", async (req, res) => {
     try {
       const { operatorId, message, history } = req.body;
-      const apiKey = process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY;
+      const apiKey = process.env.DEEPSEEK_API_KEY;
 
-      if (!apiKey || apiKey === "MY_DEEPSEEK_API_KEY" || apiKey === "sk-your-dashscope-api-key" || apiKey.trim() === "") {
-        console.warn("API_KEY is not set. Using fallback mock responses.");
+      if (!apiKey || apiKey === "MY_DEEPSEEK_API_KEY" || apiKey.trim() === "") {
+        console.warn("DEEPSEEK_API_KEY is not set. Using fallback mock responses.");
 
         let text = "";
         if (operatorId && operatorId.startsWith("thread-")) {
@@ -93,7 +93,7 @@ async function startServer() {
       }
       messages.push({ role: "user", content: message });
 
-      const response = await fetch(QWEN_API_URL, {
+      const response = await fetch(DEEPSEEK_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -110,7 +110,7 @@ async function startServer() {
 
       if (!response.ok) {
         const errBody = await response.text();
-        console.error("QWEN Chat Error:", response.status, errBody);
+        console.error("DeepSeek Chat Error:", response.status, errBody);
         throw new Error(`QWEN API returned ${response.status}`);
       }
 
@@ -128,34 +128,34 @@ async function startServer() {
     }
   });
 
-  // OCR endpoint — extract GPU spec fields from uploaded image via vision model
+  // OCR endpoint — extract GPU spec fields from uploaded image via Gemini vision
   app.post("/api/ocr", async (req, res) => {
     try {
       const { imageBase64, fileName } = req.body;
-      const apiKey = process.env.QWEN_API_KEY || process.env.DEEPSEEK_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
 
       if (!imageBase64 || typeof imageBase64 !== "string") {
         res.status(400).json({ error: "缺少图片数据" });
         return;
       }
 
-      if (!apiKey || apiKey === "MY_DEEPSEEK_API_KEY" || apiKey === "sk-your-dashscope-api-key" || apiKey.trim() === "") {
-        console.warn("API_KEY missing — returning mock OCR result");
+      if (!apiKey || apiKey.trim() === "") {
+        console.warn("GEMINI_API_KEY missing — returning mock OCR result");
         res.json({
           fields: {},
           mock: true,
-          note: "API Key 未配置，无法进行AI识别。请在 .env.local 中设置 QWEN_API_KEY。"
+          note: "API Key 未配置，无法进行AI识别。请在 .env.local 中设置 GEMINI_API_KEY。"
         });
         return;
       }
 
       const extractionPrompt = `仔细查看这张图片中的所有文字内容。图片可能是GPU服务器规格表截图、报价单、聊天记录或配置清单。
 
-请从中提取GPU算力相关的规格信息，填入以下JSON字段。必须只返回一个合法JSON对象，不要包含任何其他文字或markdown格式。如果你在图片中看到了任何与以下字段相关的信息（如型号、数字、地名等），务必填入；完全找不到的才留空字符串""。
+请从中提取GPU算力相关的规格信息，填入以下JSON字段。必须只返回一个合法JSON对象，不要包含任何其他文字或markdown格式。
 
 字段：
 - title: GPU集群/服务器名称
-- gpu: GPU型号（如H800、B300、A100、H100、GH200等），看到任何GPU型号都填
+- gpu: GPU型号（如H800、B300、A100、H100、GH200等）
 - cpu: CPU型号
 - memory: 内存容量
 - storage: 存储容量
@@ -167,43 +167,36 @@ async function startServer() {
 
 只返回JSON，不要任何解释。示例：{"title":"NVIDIA H800","gpu":"H800","cpu":"","memory":"","storage":"","network":"","qty":"8台","moq":"","delivery":"现货","location":"深圳"}`;
 
-      const response = await fetch(QWEN_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: OCR_MODEL,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "image_url",
-                  image_url: { url: imageBase64 },
-                },
-                {
-                  type: "text",
-                  text: extractionPrompt,
-                },
-              ],
-            },
-          ],
-          temperature: 0.2,
-          max_tokens: 1024,
-        }),
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        console.error("QWEN OCR Error:", response.status, "body:", errBody.slice(0, 300));
-        res.status(502).json({ error: `API returned ${response.status}: ${errBody.slice(0, 200)}` });
-        return;
+      // Strip data URL prefix if present to get raw base64
+      let rawBase64 = imageBase64;
+      let mimeType = "image/png";
+      if (imageBase64.startsWith("data:")) {
+        const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+        if (match) {
+          mimeType = match[1];
+          rawBase64 = match[2];
+        }
       }
 
-      const result = await response.json();
-      const rawText = result.choices?.[0]?.message?.content || "";
+      const genAI = new GoogleGenAI({ apiKey });
+      const result = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType, data: rawBase64 } },
+              { text: extractionPrompt },
+            ],
+          },
+        ],
+        config: {
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+        },
+      });
+
+      const rawText = result.text || "";
 
       let jsonStr = rawText.trim();
       if (jsonStr.startsWith("```")) {
@@ -221,7 +214,7 @@ async function startServer() {
 
       res.json({ fields });
     } catch (err: any) {
-      console.error("OCR Error:", err);
+      console.error("Gemini OCR Error:", err);
       res.status(500).json({ error: "OCR识别服务异常", message: err.message });
     }
   });
