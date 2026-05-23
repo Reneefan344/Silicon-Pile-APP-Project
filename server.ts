@@ -99,9 +99,11 @@ const AGENT_HTML = `<!DOCTYPE html>
   <div class="login-box" id="loginBox">
     <h1>硅堆 · 客服工作台</h1>
     <p class="subtitle">输入 ADMIN_TOKEN 以查看待处理工单</p>
-    <input id="tokenInput" type="password" placeholder="ADMIN_TOKEN" onkeydown="if(event.key==='Enter')login()">
-    <button onclick="login()">登录</button>
-    <div class="error" id="loginError">TOKEN 无效</div>
+    <form onsubmit="event.preventDefault();login()">
+    <input id="tokenInput" type="password" placeholder="ADMIN_TOKEN">
+    <button type="submit">登录</button>
+    </form>
+    <div class="error" id="loginError">错误 TOKEN</div>
   </div>
 
   <div class="main" id="mainPanel">
@@ -117,10 +119,11 @@ const AGENT_HTML = `<!DOCTYPE html>
 
     function login() {
       const inp = document.getElementById("tokenInput").value.trim();
-      if (!inp) return;
+      if (!inp) { document.getElementById("loginError").style.display = "block"; document.getElementById("loginError").textContent = "请输入密码"; return; }
       token = inp;
       if (token !== ADMIN_TOKEN) {
         document.getElementById("loginError").style.display = "block";
+        document.getElementById("loginError").textContent = "TOKEN 无效，输入: " + token.length + " 字符";
         return;
       }
       document.getElementById("loginBox").style.display = "none";
