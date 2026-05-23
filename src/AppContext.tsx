@@ -69,6 +69,7 @@ function mapPostingFromDB(row: any): Posting {
     moq: row.moq || undefined,
     timestamp: row.created_at,
     authorName: row.author_name || '',
+    userId: row.user_id || '',
     comments: [],
   };
 }

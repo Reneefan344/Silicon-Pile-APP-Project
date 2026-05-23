@@ -35,6 +35,7 @@ export interface Posting {
   moq?: string;
   timestamp: string;
   authorName?: string;
+  userId?: string;
   comments?: Comment[];
 }
 

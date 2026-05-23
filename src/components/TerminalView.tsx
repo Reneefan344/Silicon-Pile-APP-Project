@@ -11,6 +11,7 @@ export const TerminalView: React.FC = () => {
     bookmarkedIds,
     toggleBookmark,
     userProfile,
+    session,
     setRegistered,
     setWelcomeEntered,
     setActiveTab,
@@ -33,8 +34,11 @@ export const TerminalView: React.FC = () => {
     return postings.filter(p => bookmarkedIds.includes(p.id));
   }, [postings, bookmarkedIds]);
 
-  // User-submitted postings
-  const userPostings = postings;
+  // User-submitted postings (only those published by current user)
+  const userPostings = React.useMemo(() => {
+    if (!session?.user?.id) return [];
+    return postings.filter(p => p.userId === session.user.id);
+  }, [postings, session]);
 
   // Toggle active dialog helper
   const handleOpenDialog = (id: string | null) => {
@@ -60,7 +64,7 @@ export const TerminalView: React.FC = () => {
     }
 
     if (newPassword.length < 6) {
-      setPasswordError("密码安全升级需求：新密码不得小于 6 位字符");
+      setPasswordError("新密码长度不能少于6位");
       return;
     }
 
@@ -74,7 +78,7 @@ export const TerminalView: React.FC = () => {
     if (error) {
       setPasswordError(error.message);
     } else {
-      setPasswordSuccess("终端登录安全秘钥重构成功！新密码已启用。");
+      setPasswordSuccess("密码修改成功。");
       setOldPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
@@ -87,8 +91,8 @@ export const TerminalView: React.FC = () => {
     handleOpenDialog('logout_confirm');
   };
 
-  const myTransmissionsCount = 140 + (postings.length - 5); // Start at 142 statically + incremental
-  const myBookmarksCount = 87 + bookmarkedIds.length; // Start at 89 statically + incremental
+  const myTransmissionsCount = userPostings.length;
+  const myBookmarksCount = bookmarkedIds.length;
 
   return (
     <div className="flex flex-col gap-6 font-sans text-[#e1e0f7] pb-24">
@@ -230,7 +234,7 @@ export const TerminalView: React.FC = () => {
                   {activeDialog === 'my_postings' && "我的发布清单"}
                   {activeDialog === 'my_bookmarks' && "收藏项目"}
                   {activeDialog === 'customer_service' && "专属智能算力客服"}
-                  {activeDialog === 'modify_password' && "重构登录安全密钥"}
+                  {activeDialog === 'modify_password' && "修改密码"}
                   {activeDialog === 'logout_confirm' && "安全登出"}
                 </span>
                 <button onClick={() => handleOpenDialog(null)} className="text-[#8a8a9e] hover:text-[#ff5500] font-mono text-base">
@@ -390,31 +394,31 @@ export const TerminalView: React.FC = () => {
                 {activeDialog === 'modify_password' && (
                   <form onSubmit={handleModifyPasswordSubmit} className="flex flex-col gap-3 font-sans pb-2">
                     <p className="text-gray-400 leading-relaxed mb-1">
-                      为保障您的节点交易安全，在此可通过哈希通道更替终端控制密码：
+                      请输入新密码（不少于6位）：
                     </p>
 
                     {/* New Password Slot */}
                     <div className="flex flex-col gap-1">
-                      <label className="font-mono text-[10px] text-[#8a8a9e] uppercase tracking-wider">新安全登录密码</label>
+                      <label className="font-mono text-[10px] text-[#8a8a9e] uppercase tracking-wider">新密码</label>
                       <input
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         className="w-full h-9 px-3 bg-[#0c0d1c] border border-[#323344] focus:border-[#00dbe9] transition-all rounded-xs focus:outline-none text-xs text-[#e1e0f7] placeholder-[#8a8a9e]/30"
-                        placeholder="请输入新的系统安全密码 (大于6位)"
+                        placeholder="请输入至少6位的新密码"
                         required
                       />
                     </div>
 
                     {/* Confirm New Password Slot */}
                     <div className="flex flex-col gap-1">
-                      <label className="font-mono text-[10px] text-[#8a8a9e] uppercase tracking-wider">确认新登录密码</label>
+                      <label className="font-mono text-[10px] text-[#8a8a9e] uppercase tracking-wider">确认新密码</label>
                       <input
                         type="password"
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                         className="w-full h-9 px-3 bg-[#0c0d1c] border border-[#323344] focus:border-[#00dbe9] transition-all rounded-xs focus:outline-none text-xs text-[#e1e0f7] placeholder-[#8a8a9e]/30"
-                        placeholder="请再次拼写您的新安全密码"
+                        placeholder="请再次输入新密码"
                         required
                       />
                     </div>
@@ -437,7 +441,7 @@ export const TerminalView: React.FC = () => {
                       type="submit"
                       className="w-full bg-[#0c0d12] hover:bg-[#00dbe9]/10 border border-[#00dbe9]/50 text-[#00dbe9] font-mono text-xs tracking-widest font-bold py-2.5 rounded-xs transition-all uppercase cursor-pointer flex items-center justify-center gap-1 mt-1.5"
                     >
-                      重组密码并同步云链
+                      确认修改
                     </button>
                   </form>
                 )}
