@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase, supabaseAnon } from "./supabaseClient";
+import { supabase, supabaseUrl, supabaseAnonKey } from "./supabaseClient";
 import { Posting, ChatThread, ChatMessage, SystemLog, TabType, UserProfile, Comment } from "./types";
 import { INITIAL_POSTINGS, INITIAL_CHATS, INITIAL_SYSTEM_LOGS } from "./initialData";
 
@@ -403,18 +403,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Auth functions
   const login = async (phone: string, password: string): Promise<{ error?: string }> => {
-    // Use stateless client for phone lookup — never affected by stale sessions
-    const { data, error: queryError } = await supabaseAnon
-      .from('profiles')
-      .select('email')
-      .eq('phone', phone);
-
-    if (queryError) {
-      console.error("Phone lookup error:", queryError);
-      return { error: `查询异常(${queryError.code || 'unknown'})，请稍后重试` };
+    // Direct Supabase REST API call — bypasses all JS client internals
+    let profileEmail: string | null = null;
+    try {
+      const queryUrl = `${supabaseUrl}/rest/v1/profiles?select=email&phone=eq.${encodeURIComponent(phone)}`;
+      const res = await fetch(queryUrl, {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+      });
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.error("Phone lookup HTTP", res.status, errBody);
+        return { error: `查询异常(HTTP ${res.status})，请稍后重试` };
+      }
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0 && rows[0].email) {
+        profileEmail = rows[0].email;
+      }
+    } catch (err: any) {
+      console.error("Phone lookup error:", err);
+      return { error: "网络异常，请稍后重试" };
     }
 
-    const profileEmail = data && data.length > 0 ? data[0].email : null;
     if (!profileEmail) {
       return { error: "该手机号未注册，请先注册账号" };
     }
@@ -444,14 +456,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     phone: string,
     location: string
   ): Promise<{ error?: string; needEmailConfirm?: boolean }> => {
-    // Pre-check: is phone already registered? (use stateless client to avoid session issues)
-    const { data: phoneCheck } = await supabaseAnon
-      .from('profiles')
-      .select('id')
-      .eq('phone', phone);
-
-    if (phoneCheck && phoneCheck.length > 0) {
-      return { error: "该手机号已被注册，请返回登录页面直接登录" };
+    // Pre-check: is phone already registered? (direct REST API to avoid session issues)
+    try {
+      const checkUrl = `${supabaseUrl}/rest/v1/profiles?select=id&phone=eq.${encodeURIComponent(phone)}`;
+      const checkRes = await fetch(checkUrl, {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+      });
+      if (checkRes.ok) {
+        const rows = await checkRes.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          return { error: "该手机号已被注册，请返回登录页面直接登录" };
+        }
+      }
+    } catch (_) {
+      // If pre-check fails, let signUp handle it
     }
 
     const { data, error } = await supabase.auth.signUp({
