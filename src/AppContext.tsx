@@ -403,19 +403,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Auth functions
   const login = async (phone: string, password: string): Promise<{ error?: string }> => {
-    // Look up email by phone number from profiles
-    const { data: profileData } = await supabase
+    // Look up email by phone number from profiles (unauthenticated, RLS allows public read)
+    const { data: profileData, error: queryError } = await supabase
       .from('profiles')
       .select('email')
       .eq('phone', phone)
-      .single();
+      .limit(1)
+      .maybeSingle();
+
+    if (queryError) {
+      console.error("Phone lookup error:", queryError);
+      return { error: "系统查询异常，请稍后重试" };
+    }
 
     if (!profileData?.email) {
       return { error: "该手机号未注册，请先注册账号" };
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email: profileData.email, password });
-    if (error) return { error: error.message === "Invalid login credentials" ? "手机号或密码错误，请重试" : error.message };
+
+    if (error) {
+      if (error.message === "Invalid login credentials") {
+        return { error: "手机号或密码错误，请重试" };
+      }
+      if (error.message.toLowerCase().includes("email not confirmed")) {
+        return { error: "该账号邮箱尚未验证，请查收注册邮件并点击确认链接后重试" };
+      }
+      return { error: error.message };
+    }
 
     setWelcomeEnteredState(true);
     setRegisteredState(true);
@@ -430,6 +445,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     phone: string,
     location: string
   ): Promise<{ error?: string; needEmailConfirm?: boolean }> => {
+    // Pre-check: is phone already registered?
+    const { data: phoneExists } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('phone', phone)
+      .limit(1)
+      .maybeSingle();
+
+    if (phoneExists) {
+      return { error: "该手机号已被注册，请返回登录页面直接登录" };
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -438,12 +465,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
     });
 
-    if (error) return { error: error.message };
+    if (error) {
+      if (error.message.toLowerCase().includes("already") || error.message.includes("已")) {
+        return { error: "该邮箱已被注册，请返回登录页面登录" };
+      }
+      return { error: error.message };
+    }
 
     if (data.user) {
       if (data.session) {
         // Auto-logged in (email confirmation disabled)
-        // Profile is auto-created by DB trigger; upsert to ensure phone/email are stored
         await supabase.from('profiles').upsert({
           id: data.user.id,
           nickname,
