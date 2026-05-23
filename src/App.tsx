@@ -11,11 +11,11 @@ import { ToastContainer } from "./components/ToastContainer";
 import { Layers, PlusSquare, Terminal, User, Grid2X2, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-const LobbyView = React.lazy(() => import("./components/LobbyView"));
-const PublishView = React.lazy(() => import("./components/PublishView"));
-const MessagesView = React.lazy(() => import("./components/MessagesView"));
-const TerminalView = React.lazy(() => import("./components/TerminalView"));
-const DashboardView = React.lazy(() => import("./components/DashboardView"));
+const LobbyView = React.lazy(() => import("./components/LobbyView").then(m => ({ default: m.LobbyView })));
+const PublishView = React.lazy(() => import("./components/PublishView").then(m => ({ default: m.PublishView })));
+const MessagesView = React.lazy(() => import("./components/MessagesView").then(m => ({ default: m.MessagesView })));
+const TerminalView = React.lazy(() => import("./components/TerminalView").then(m => ({ default: m.TerminalView })));
+const DashboardView = React.lazy(() => import("./components/DashboardView").then(m => ({ default: m.DashboardView })));
 
 const PageFallback = () => (
   <div className="flex items-center justify-center py-20">
