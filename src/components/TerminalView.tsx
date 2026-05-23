@@ -347,13 +347,13 @@ export const TerminalView: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 border border-[#00dbe9]/40 bg-[#0c0d1c] rounded-full overflow-hidden shrink-0 flex items-center justify-center">
                           <img
-                            alt="Operator Kaelen Avatar"
+                            alt="GUIDUI客服 Avatar"
                             className="w-full h-full object-cover"
                             src="https://lh3.googleusercontent.com/aida-public/AB6AXuCNMDBJVKkftZmm9aoNQBapbCAyw3_tbNB-hFXij9G-zhC0BzC8AZmQoVrzsJWzQ4syqvkqF_kUqedKTFokVfMZjLvF3ID50wxkrAHVexu45JcKf8ObvIEPTnfW7UXRZjctf4NgmEOHwp3zkJ5zwG8qnoAwCIadS48ICn6Q4dWv0g1cvmImzKBU2yC-fNnJiZSAQOcMU5tN918WmetyYGt1LZNm5_d5u-gyjtJ4hyEaeR4wYzfC6FQ2swl_rDcmKVJgUUP7n7rUpUQl"
                           />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-white">操作员 Kaelen</p>
+                          <p className="text-sm font-bold text-white">GUIDUI客服</p>
                           <span className="text-[10px] text-[#00dbe9] border border-[#00dbe9]/30 bg-[#00dbe9]/5 px-1.5 py-0.5 rounded-full uppercase font-mono tracking-widest scale-90 inline-block mt-0.5">平台系统使用与解答</span>
                         </div>
                       </div>
@@ -363,7 +363,7 @@ export const TerminalView: React.FC = () => {
                         onClick={() => {
                           handleOpenDialog(null);
                           setActiveMessageSubTab("chat");
-                          setActiveChatThreadId("kaelen");
+                          setActiveChatThreadId("guidui");
                           setActiveTab("messages");
                         }}
                         className="w-full bg-[#00dbe9] hover:bg-[#00b0bd] text-black font-semibold text-xs py-2.5 px-4 rounded-xs font-mono tracking-widest transition-colors flex items-center justify-center gap-1.5 cursor-pointer uppercase font-bold"

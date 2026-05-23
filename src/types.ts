@@ -47,7 +47,7 @@ export interface ChatMessage {
 }
 
 export interface ChatThread {
-  id: string; // 'kaelen' | 'vane' | 'reyes'
+  id: string; // 'guidui' or 'thread-xxx'
   name: string;
   avatar: string;
   avatarAlt: string;

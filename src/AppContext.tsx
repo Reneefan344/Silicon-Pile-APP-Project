@@ -764,7 +764,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const submitInquiry = async (posting: Posting, inquiryText: string): Promise<string> => {
-    if (!session?.user) return 'kaelen';
+    if (!session?.user) return 'guidui';
 
     const isSupply = posting.type === 'supply';
     const messageTitle = isSupply ? "【货源询单接洽】" : "【需求应单接洽】";
@@ -781,14 +781,11 @@ ${qtyLabel}: ${posting.qty}
 ${noteLabel}: "${inquiryText}"`;
 
     const author = posting.authorName || "系统自营算力仓";
-    let targetThreadId = "kaelen";
+    let targetThreadId = "guidui";
 
     const matchedPredefined = chats.find(c =>
       author.toLowerCase().includes(c.id) ||
-      c.name.toLowerCase().includes(author.toLowerCase()) ||
-      (author.toLowerCase().includes("vane") && c.id === "vane") ||
-      (author.toLowerCase().includes("reyes") && c.id === "reyes") ||
-      (author.toLowerCase().includes("kaelen") && c.id === "kaelen")
+      c.name.toLowerCase().includes(author.toLowerCase())
     );
 
     if (matchedPredefined) {

@@ -95,7 +95,7 @@ export const LobbyView: React.FC = () => {
     setTimeout(() => {
       setSelectedPost(null);
       setActiveMessageSubTab("chat");
-      setActiveChatThreadId(targetThreadId || "kaelen");
+      setActiveChatThreadId(targetThreadId || "guidui");
       setActiveTab("messages");
     }, 1200);
   };
