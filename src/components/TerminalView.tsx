@@ -45,12 +45,12 @@ export const TerminalView: React.FC = () => {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      addLogMessage({ logName: "头像更新", category: "security", title: "头像上传失败", description: "所选文件不是图片格式", status: "alert" });
+      addLogMessage({ logName: "头像", category: "security", title: "上传失败", description: "请选择图片文件", status: "alert" });
       return;
     }
 
-    if (file.size > 1 * 1024 * 1024) {
-      addLogMessage({ logName: "头像更新", category: "security", title: "头像上传失败", description: "图片大小超过1MB限制", status: "alert" });
+    if (file.size > 2 * 1024 * 1024) {
+      addLogMessage({ logName: "头像", category: "security", title: "上传失败", description: "图片超过2MB", status: "alert" });
       return;
     }
 
@@ -59,9 +59,9 @@ export const TerminalView: React.FC = () => {
       const base64 = await compressImage(file);
       const updatedProfile = { ...userProfile!, avatar: base64 };
       await setUserProfile(updatedProfile);
-      addLogMessage({ logName: "头像更新", category: "security", title: "头像更新成功", description: "用户头像已更新", status: "success" });
+      addLogMessage({ logName: "头像", category: "security", title: "头像已更新", description: "", status: "success" });
     } catch (err) {
-      addLogMessage({ logName: "头像更新", category: "security", title: "头像上传失败", description: "图片处理异常，请重试", status: "alert" });
+      addLogMessage({ logName: "头像", category: "security", title: "上传失败", description: "处理异常", status: "alert" });
     } finally {
       setIsUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

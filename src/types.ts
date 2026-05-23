@@ -29,8 +29,11 @@ export interface Posting {
   networkArchitecture?: string;
   requiresContract: boolean;
   supportsGuaranty: boolean;
+  payToInspect: boolean;
+  requiresDeposit: boolean;
   attachmentName?: string;
   attachmentData?: string;
+  attachmentVisibility?: string;
   estArrival?: string;
   moq?: string;
   timestamp: string;

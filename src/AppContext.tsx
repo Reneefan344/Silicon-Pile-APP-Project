@@ -30,8 +30,9 @@ interface AppContextProps {
   setUserProfile: (profile: UserProfile | null) => void;
   setRegistered: (registered: boolean) => void;
 
-  addPosting: (posting: Omit<Posting, 'id' | 'timestamp'>) => Promise<void>;
+  addPosting: (posting: Omit<Posting, 'id' | 'timestamp'>) => Promise<boolean>;
   addComment: (postId: string, text: string) => Promise<void>;
+  deletePosting: (id: string) => Promise<boolean>;
   toggleBookmark: (id: string) => Promise<void>;
   sendChatMessage: (threadId: string, text: string) => Promise<void>;
   submitInquiry: (posting: Posting, inquiryText: string) => Promise<string>;
@@ -63,8 +64,11 @@ function mapPostingFromDB(row: any): Posting {
     networkArchitecture: row.network_architecture || '',
     requiresContract: row.requires_contract || false,
     supportsGuaranty: row.supports_guaranty || false,
+    payToInspect: row.pay_to_inspect || false,
+    requiresDeposit: row.requires_deposit || false,
     attachmentName: row.attachment_name || undefined,
     attachmentData: row.attachment_data || undefined,
+    attachmentVisibility: row.attachment_visibility || undefined,
     estArrival: row.est_arrival || undefined,
     moq: row.moq || undefined,
     timestamp: row.created_at,
@@ -324,8 +328,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       network_architecture: p.networkArchitecture || '',
       requires_contract: p.requiresContract,
       supports_guaranty: p.supportsGuaranty,
+      pay_to_inspect: p.payToInspect || false,
+      requires_deposit: p.requiresDeposit || false,
       attachment_name: p.attachmentName || null,
       attachment_data: p.attachmentData || null,
+      attachment_visibility: p.attachmentVisibility || null,
       est_arrival: p.estArrival || null,
       moq: p.moq || null,
       author_name: p.authorName || '',
@@ -558,7 +565,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addPosting = async (newPostData: Omit<Posting, 'id' | 'timestamp'>) => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      console.error("addPosting: 未登录，无法发布");
+      return false;
+    }
     const newId = crypto.randomUUID();
     const now = new Date().toISOString();
 
@@ -581,8 +591,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       network_architecture: newPostData.networkArchitecture || '',
       requires_contract: newPostData.requiresContract,
       supports_guaranty: newPostData.supportsGuaranty,
+      pay_to_inspect: newPostData.payToInspect || false,
+      requires_deposit: newPostData.requiresDeposit || false,
       attachment_name: newPostData.attachmentName || null,
       attachment_data: newPostData.attachmentData || null,
+      attachment_visibility: newPostData.attachmentVisibility || null,
       est_arrival: newPostData.estArrival || null,
       moq: newPostData.moq || null,
       author_name: newPostData.authorName || userProfile?.nickname || '系统自营算力节点',
@@ -590,16 +603,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: now,
     });
 
-    if (!error) {
-      const newPost: Posting = {
-        ...newPostData,
-        id: newId,
-        timestamp: now,
-        authorName: newPostData.authorName || userProfile?.nickname || '系统自营算力节点',
-        comments: [],
-      };
-      setPostings((prev) => [newPost, ...prev]);
+    if (error) {
+      console.error("addPosting: Supabase insert 失败:", error.message, error.details);
+      addLogMessage({
+        logName: "发布",
+        category: "system",
+        title: "发布失败",
+        description: error.message,
+        status: "critical"
+      });
+      return false;
     }
+
+    const newPost: Posting = {
+      ...newPostData,
+      id: newId,
+      timestamp: now,
+      authorName: newPostData.authorName || userProfile?.nickname || '系统自营算力节点',
+      comments: [],
+    };
+    setPostings((prev) => [newPost, ...prev]);
+    return true;
+  };
+
+  const deletePosting = async (id: string): Promise<boolean> => {
+    if (!session?.user) return false;
+    const { error } = await supabase
+      .from('postings')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', session.user.id);
+    if (!error) {
+      setPostings((prev) => prev.filter((p) => p.id !== id));
+      addLogMessage({
+        logName: "下架",
+        category: "system",
+        title: "已下架",
+        description: "",
+        status: "success"
+      });
+      return true;
+    }
+    return false;
   };
 
   const addComment = async (postId: string, text: string) => {
@@ -779,13 +824,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const qtyLabel = isSupply ? "货源数量" : "期望数量";
     const noteLabel = isSupply ? "我的商务询盘附言" : "我的供给对接说明";
 
-    const inquiryMessageText = `${messageTitle}
+    let inquiryMessageText = `${messageTitle}
 项目名称: ${posting.title}
 类别: ${isSupply ? '算力货源 (SUPPLY)' : '算力需求 (DEMAND)'}
 ${locLabel}: ${posting.location}
 规格: ${posting.architecture}
 ${qtyLabel}: ${posting.qty}
 ${noteLabel}: "${inquiryText}"`;
+
+    // Append attachment info if visibility is chat_only
+    if (posting.attachmentVisibility === 'chat_only' && posting.attachmentName) {
+      inquiryMessageText += `\n\n📎 附件: ${posting.attachmentName}`;
+    }
 
     const author = posting.authorName || "系统自营算力仓";
     let targetThreadId = "guidui";
@@ -943,6 +993,7 @@ ${noteLabel}: "${inquiryText}"`;
         setRegistered,
         addPosting,
         addComment,
+        deletePosting,
         toggleBookmark,
         sendChatMessage,
         submitInquiry,

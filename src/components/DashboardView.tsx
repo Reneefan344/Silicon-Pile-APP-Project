@@ -8,27 +8,9 @@ export const DashboardView: React.FC = () => {
 
   const [typeFilter, setTypeFilter] = useState<'all' | 'supply' | 'demand'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | '现货' | '期货' | '在途' | 'expired'>('all');
-  const [gpuFilter, setGpuFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const now = new Date();
-
-  // Extract unique GPU models from postings
-  const gpuOptions = useMemo(() => {
-    const gpus = new Set<string>();
-    postings.forEach(p => {
-      if (p.cpu) {
-        const match = p.architecture?.match(/(H\d+|B\d+|A\d+|GH\d+|L40S|MI\d+|V\d+)/i);
-        if (match) gpus.add(match[1].toUpperCase());
-      }
-    });
-    // Also extract from architecture field
-    postings.forEach(p => {
-      const match = p.architecture?.match(/(H800|H100|B300|B200|A100|A800|GH200|L40S|MI300X|V100)/i);
-      if (match) gpus.add(match[1].toUpperCase());
-    });
-    return Array.from(gpus).sort();
-  }, [postings]);
 
   // Stats
   const stats = useMemo(() => {
@@ -61,10 +43,6 @@ export const DashboardView: React.FC = () => {
         return false;
       }
       if (statusFilter === 'all' && isExpired) return true; // Show expired in "all" mode
-      if (gpuFilter !== 'all') {
-        const archMatch = p.architecture?.toUpperCase().includes(gpuFilter);
-        if (!archMatch) return false;
-      }
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const haystack = `${p.title} ${p.architecture} ${p.location} ${p.cpu || ''} ${p.gpu || ''} ${p.qty}`.toLowerCase();
@@ -72,7 +50,7 @@ export const DashboardView: React.FC = () => {
       }
       return true;
     });
-  }, [postings, typeFilter, statusFilter, gpuFilter, searchQuery, now]);
+  }, [postings, typeFilter, statusFilter, searchQuery, now]);
 
   const isExpired = (post: Posting) => post.expiresAt && new Date(post.expiresAt) <= now;
 
@@ -130,20 +108,6 @@ export const DashboardView: React.FC = () => {
           <option value="在途">在途</option>
           <option value="expired">已过期</option>
         </select>
-
-        {/* GPU filter */}
-        {gpuOptions.length > 0 && (
-          <select
-            value={gpuFilter}
-            onChange={(e) => setGpuFilter(e.target.value)}
-            className="h-8 px-2 bg-[#13141c] border border-[#323344] rounded-xs text-xs text-[#8a8a9e] font-mono focus:border-[#00F0FF] outline-none"
-          >
-            <option value="all">全部GPU</option>
-            {gpuOptions.map(g => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
-        )}
 
         {/* Search */}
         <div className="relative flex-1 min-w-[160px]">

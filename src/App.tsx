@@ -12,6 +12,7 @@ import { PublishView } from "./components/PublishView";
 import { MessagesView } from "./components/MessagesView";
 import { TerminalView } from "./components/TerminalView";
 import { DashboardView } from "./components/DashboardView";
+import { ToastContainer } from "./components/ToastContainer";
 import { Layers, PlusSquare, Terminal, User, Grid2X2, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -227,6 +228,8 @@ function AppContent() {
 
         </div>
       </nav>
+
+      <ToastContainer />
 
     </div>
   );

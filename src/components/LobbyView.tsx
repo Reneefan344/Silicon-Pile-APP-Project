@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useApp } from "../AppContext";
 import { Posting } from "../types";
-import { Search, SlidersHorizontal, MapPin, Zap, RefreshCw, Calendar, Tag, Info, Heart, Bookmark, AlertCircle, FileText, Download, MessageSquare, Send, Share2, Copy, Check } from "lucide-react";
+import { Search, SlidersHorizontal, MapPin, Zap, RefreshCw, Calendar, Tag, Info, Heart, Bookmark, AlertCircle, FileText, Download, MessageSquare, Send, Share2, Copy, Check, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { generateQRCode } from "../utils/qrcode";
 
@@ -45,7 +45,9 @@ export const LobbyView: React.FC = () => {
     bookmarkedIds,
     toggleBookmark,
     submitInquiry,
-    addLogMessage
+    addLogMessage,
+    deletePosting,
+    session
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -90,14 +92,18 @@ export const LobbyView: React.FC = () => {
     }
   };
 
-  // Handle ?posting=xxx URL param on mount
+  // Handle ?posting=xxx URL param — only once per mount
+  const urlParamHandled = useRef(false);
   useEffect(() => {
+    if (urlParamHandled.current) return;
     const params = new URLSearchParams(window.location.search);
     const postingId = params.get('posting');
     if (postingId) {
       const target = postings.find(p => p.id === postingId);
       if (target) {
         handleOpenDetail(target);
+        window.history.replaceState({}, '', '/');
+        urlParamHandled.current = true;
       }
     }
   }, [postings]);
@@ -162,8 +168,8 @@ Status Tag   : ${post.status}
 - Network Topology   : ${post.networkArchitecture || "Dual Port InfiniBand NDR 400G"}
 
 [COMPLIANCE CHECKLIST // 合规审核条目]
-- Standard Contract  : ${post.requiresContract ? "REQUIRED (必须签署国家标准异地算力租赁合同)" : "OPTIONAL (非强制签署标准租赁协议)"}
-- Escrow Protection  : ${post.supportsGuaranty ? "SUPPORTED (支持亚太智算平台资金托管分批划扣保护)" : "NOT SUPPORTED (需双方点对点直付，注意资金交割风险)"}
+- Standard Contract  : ${post.requiresContract ? "REQUIRED (配合国企/上市公司主体签约审核)" : "OPTIONAL (无强制签署合同要求)"}
+- Escrow Protection  : ${post.supportsGuaranty ? "SUPPORTED (现货交易，全款即时清算)" : "NOT SUPPORTED (非现货交易)"}
 
 ================================================================================
 [COMPUTATIONAL INTEGRITY & CERTIFICATION // 算力真机校验签章]
@@ -188,10 +194,10 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
     document.body.removeChild(link);
 
     addLogMessage({
-      logName: "文件交割.009",
+      logName: "下载",
       category: "security",
-      title: `规格附件包下载成功`,
-      description: `安全代理成功签发并解密算力规格附件 [${downloadName}]。真机校验哈希校验通过。`,
+      title: "附件已下载",
+      description: downloadName,
       status: "success"
     });
   };
@@ -277,6 +283,22 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                       >
                         <Heart className="w-4 h-4" fill={isBookmarked ? "currentColor" : "none"} />
                       </button>
+
+                      {/* Delete button — only for own postings */}
+                      {session?.user?.id && post.userId === session.user.id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('确认下架该发布？')) {
+                              deletePosting(post.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-sm hover:bg-[#323344]/40 transition-colors cursor-pointer text-gray-500 hover:text-red-400"
+                          title="下架发布"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
 
                       {/* Status indicator */}
                       <div className="flex items-center gap-1.5 bg-[#13141c] px-2 py-1 border border-[#323344]/40 rounded-xs">
@@ -435,12 +457,29 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                   <h3 className="text-xl font-bold text-white tracking-wider mt-1">{selectedPost.title}</h3>
                   <p className="font-mono text-xs text-[#8a8a9e]">{selectedPost.architecture}</p>
                 </div>
-                <button
-                  onClick={() => setSelectedPost(null)}
-                  className="text-[#8a8a9e] hover:text-[#ff5500] font-mono text-lg p-1 cursor-pointer"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1">
+                  {session?.user?.id && selectedPost.userId === session.user.id && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('确认下架该发布？')) {
+                          deletePosting(selectedPost.id);
+                          setSelectedPost(null);
+                          window.history.replaceState({}, '', '/');
+                        }
+                      }}
+                      className="text-[#8a8a9e] hover:text-red-400 font-mono p-1 cursor-pointer"
+                      title="下架发布"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setSelectedPost(null); window.history.replaceState({}, '', '/'); }}
+                    className="text-[#8a8a9e] hover:text-[#ff5500] font-mono text-lg p-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* Content section */}
@@ -541,16 +580,28 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                     <div className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${selectedPost.requiresContract ? 'bg-[#00F0FF]' : 'bg-gray-600'}`} />
                       <span className={selectedPost.requiresContract ? 'text-[#e1e0f7]' : 'text-[#8a8a9e]'}>
-                        {selectedPost.requiresContract ? "必须签署标准算力租赁合同" : "无强制签署合同要求"}
+                        {selectedPost.requiresContract ? "配合国企/上市公司主体签约审核" : "无需配合签约审核"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${selectedPost.supportsGuaranty ? 'bg-[#00F0FF]' : 'bg-gray-600'}`} />
                       <span className={selectedPost.supportsGuaranty ? 'text-[#e1e0f7]' : 'text-[#8a8a9e]'}>
-                        {selectedPost.supportsGuaranty ? "支持平台资金托管担保交易（更安全）" : "暂不支持托管担保"}
+                        {selectedPost.supportsGuaranty ? "现货交易，全款即时清算" : "非现货交易"}
                       </span>
                     </div>
-                    {selectedPost.attachmentName && (
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${selectedPost.payToInspect ? 'bg-[#00F0FF]' : 'bg-gray-600'}`} />
+                      <span className={selectedPost.payToInspect ? 'text-[#e1e0f7]' : 'text-[#8a8a9e]'}>
+                        {selectedPost.payToInspect ? "支持款项托管，付款看货" : "不支持款项托管"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${selectedPost.requiresDeposit ? 'bg-[#00F0FF]' : 'bg-gray-600'}`} />
+                      <span className={selectedPost.requiresDeposit ? 'text-[#e1e0f7]' : 'text-[#8a8a9e]'}>
+                        {selectedPost.requiresDeposit ? "算力排期锁定，须先行缴纳定金" : "无需缴纳定金"}
+                      </span>
+                    </div>
+                    {selectedPost.attachmentName && selectedPost.attachmentVisibility !== 'chat_only' && (
                       <div className="flex items-center justify-between gap-3 bg-[#13141c]/80 border border-[#323344] p-2.5 rounded-sm mt-1.5 w-full">
                         <div className="flex items-center gap-2 overflow-hidden">
                           <FileText className="w-4 h-4 text-[#ff5500] shrink-0" />
@@ -585,42 +636,26 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                       animate={{ scale: 1 }}
                       className="text-[#00F0FF] font-bold tracking-widest text-sm flex flex-col gap-2"
                     >
-                      <span>{selectedPost.type === "supply" ? "✓ 算力货源询盘意向提报成功" : "✓ 算力需求对接协议提报成功"}</span>
-                      <span className="text-gray-400 font-normal font-sans text-xs">
-                        {selectedPost.type === "supply" 
-                          ? `正在拉起与发布节点 ${selectedPost.authorName || '自营节点'} 的专属算力通信，协商合同，请稍候...`
-                          : `正在拉起与需求节点 ${selectedPost.authorName || '采购客户'} 的专属交付对接，沟通协议，请稍候...`
-                        }
-                      </span>
+                      <span>私聊发送成功</span>
+                      <span className="text-gray-400 font-normal font-sans text-xs">请等待对方回复</span>
                     </motion.div>
                   </div>
                 ) : (
                   <form onSubmit={handleSubmitInquiry} className="flex flex-col gap-2 border-t border-[#323344] pt-3 shrink-0">
-                    <label className="font-mono text-xs text-[#8a8a9e]">
-                      {selectedPost.type === "supply" 
-                        ? "请输入您的采购/询盘意向，将即刻为您拉起专属商务对接谈判："
-                        : "请输入您的供给对接声明，将即刻为您拉起专属开发商应标谈判："
-                      }
-                    </label>
+                    <label className="font-mono text-xs text-[#8a8a9e]">私聊</label>
                     <textarea
                       value={inquiryText}
                       onChange={(e) => setInquiryText(e.target.value)}
                       className="w-full bg-[#13141c] border border-[#323344] focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF]/50 min-h-[66px] p-2.5 font-sans text-xs text-[#e1e0f7] rounded-sm focus:outline-none placeholder-[#8a8a9e]/40"
-                      placeholder={selectedPost.type === "supply"
-                        ? `例: 我们对该批 ${selectedPost.qty} 算力十分感兴趣，计划租赁时长为1个月，请问首付押金要求以及交割带宽支持是多少？`
-                        : `例: 我方节点现货支持随时部署，可调拨 ${selectedPost.qty} ${selectedPost.title}。请问履约多签手续以及托管机房交付何时启动？`
-                      }
+                      placeholder="输入您的消息..."
                     />
-                    
+
                     <button
                       type="submit"
                       disabled={isSubmittingInquiry}
                       className="w-full h-10 flex items-center justify-center bg-[#ff5500] hover:bg-[#aa3600] text-white font-bold font-mono tracking-widest text-xs transition-colors rounded-xs cursor-pointer"
                     >
-                      {isSubmittingInquiry 
-                        ? "密钥校验与托管链核对中..." 
-                        : (selectedPost.type === "supply" ? "递交商务询盘并开启对话 ➔" : "递交对接说明并开启谈判 ➔")
-                      }
+                      {isSubmittingInquiry ? "发送中..." : "发送私聊"}
                     </button>
                   </form>
                 )}

@@ -37,6 +37,11 @@ export const PublishView: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Document attachment states
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docVisibility, setDocVisibility] = useState<'public' | 'logged_in' | 'chat_only'>('public');
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+
   // Validation state
   const [errorText, setErrorText] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
@@ -132,13 +137,13 @@ export const PublishView: React.FC = () => {
 
       if (data.error) {
         setOcrError(data.error);
-        addLogMessage({ logName: "OCR识别", category: "system", title: "AI识别失败", description: data.error, status: "alert" });
+        addLogMessage({ logName: "OCR", category: "system", title: "识别失败", description: data.error, status: "alert" });
         return;
       }
 
       if (data.mock) {
         setOcrError(data.note || "API Key未配置");
-        addLogMessage({ logName: "OCR识别", category: "system", title: "AI识别未配置", description: data.note || "", status: "alert" });
+        addLogMessage({ logName: "OCR", category: "system", title: "识别失败", description: "API Key 未配置", status: "alert" });
         return;
       }
 
@@ -156,15 +161,15 @@ export const PublishView: React.FC = () => {
 
       const filledCount = Object.values(f).filter(v => v).length;
       addLogMessage({
-        logName: "OCR识别",
+        logName: "OCR",
         category: "system",
-        title: `AI识别完成 — 已填入 ${filledCount} 个字段`,
-        description: `从图片识别出: ${JSON.stringify(f).slice(0, 200)}`,
+        title: "识别完成",
+        description: `已填入 ${filledCount} 个字段`,
         status: "success"
       });
     } catch (err: any) {
       setOcrError("网络异常，请重试");
-      addLogMessage({ logName: "OCR识别", category: "system", title: "AI识别异常", description: err.message || "网络错误", status: "alert" });
+      addLogMessage({ logName: "OCR", category: "system", title: "识别失败", description: "网络异常", status: "alert" });
     } finally {
       setIsOcrScanning(false);
     }
@@ -210,7 +215,7 @@ export const PublishView: React.FC = () => {
     }
     if (gpu) tagsList.push("全新测试");
 
-    const proceedWithPublish = () => {
+    const proceedWithPublish = (attachmentName?: string, attachmentData?: string, attachmentVisibility?: string) => {
       const calcExpiresAt = (): string | undefined => {
         if (expiryOption === 'custom') {
           if (!customExpiryDate) return undefined;
@@ -222,8 +227,8 @@ export const PublishView: React.FC = () => {
         return d.toISOString();
       };
 
-      setTimeout(() => {
-        addPosting({
+      setTimeout(async () => {
+        const ok = await addPosting({
           title,
           architecture: architectureString,
           description: `该发布由用户自主提交。GPU型号: ${gpu || "N/A"}，CPU型号: ${cpu || "N/A"}，物理内存: ${memory || "N/A"}。支持全方位算力定制开发。交付期约: ${delivery}。`,
@@ -240,15 +245,26 @@ export const PublishView: React.FC = () => {
           networkArchitecture: networkArch,
           requiresContract: isStateOwned,
           supportsGuaranty: isSpotCash,
+          payToInspect: isPayToInspect,
+          requiresDeposit,
           moq: moq.trim().endsWith("台") || moq.trim().endsWith("台起订") ? moq.trim() : `${moq.trim()} 台起订`,
           expiresAt: calcExpiresAt(),
+          attachmentName,
+          attachmentData,
+          attachmentVisibility,
         });
 
+        if (!ok) {
+          setIsPublishing(false);
+          setErrorText("发布失败，请检查网络后重试");
+          return;
+        }
+
         addLogMessage({
-          logName: "发布指令.007",
+          logName: "发布",
           category: "system",
-          title: activePublishSubTab === "supply" ? "算力货源已挂载" : "算力采购需求已上链",
-          description: `用户成功向大厅提交了 ${title} 规格发布，台数 ${qty} 台，位于 ${location} 机房。`,
+          title: "发布成功",
+          description: title,
           status: "success"
         });
 
@@ -271,6 +287,7 @@ export const PublishView: React.FC = () => {
           setStorage("");
           setNetworkArch("");
           setDroppedFile(null);
+          setDocFile(null);
           setIsStateOwned(false);
           setIsSpotCash(false);
           setIsPayToInspect(false);
@@ -281,7 +298,18 @@ export const PublishView: React.FC = () => {
       }, 1200);
     };
 
-    proceedWithPublish();
+    if (docFile) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        proceedWithPublish(docFile.name, reader.result as string, docVisibility);
+      };
+      reader.onerror = () => {
+        proceedWithPublish();
+      };
+      reader.readAsDataURL(docFile);
+    } else {
+      proceedWithPublish();
+    }
   };
 
   return (
@@ -638,6 +666,97 @@ export const PublishView: React.FC = () => {
                 min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
                 className="w-full h-10 px-3 bg-[#13141c] border border-[#323344] focus:border-[#00F0FF] transition-all rounded-xs focus:outline-none text-sm text-[#e1e0f7] font-mono"
               />
+            )}
+          </div>
+        </section>
+
+        {/* 6. Document Attachment Upload */}
+        <section className="bg-[#0D0E12] border border-t-2 border-[#ff5500]/30 border-r-[#323344] border-b-[#323344] border-l-[#323344] flex flex-col rounded-sm shadow-md mb-6">
+          <div className="bg-[#13141c]/50 px-4 py-2 flex items-center justify-between border-b border-[#323344]/50">
+            <span className="font-mono text-xs font-bold tracking-widest text-[#00F0FF] uppercase">
+              06 // 附件上传
+            </span>
+            <FileText className="w-3.5 h-3.5 text-gray-500" />
+          </div>
+
+          <div className="p-4">
+            <input
+              type="file"
+              ref={docFileInputRef}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  setDocFile(e.target.files[0]);
+                }
+              }}
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+              className="hidden"
+            />
+
+            <div
+              onClick={() => docFileInputRef.current?.click()}
+              className={`w-full min-h-[90px] border border-dashed rounded-xs flex flex-col items-center justify-center cursor-pointer gap-2 p-4 transition-all ${
+                docFile
+                  ? "border-[#00F0FF] bg-[#00F0FF]/5"
+                  : "border-[#323344] bg-[#13141c]/50 hover:border-[#00F0FF] hover:bg-[#00F0FF]/5"
+              }`}
+            >
+              <UploadCloud className={`w-6 h-6 ${docFile ? "text-[#00F0FF]" : "text-[#8a8a9e]"}`} />
+
+              {docFile ? (
+                <div className="text-center">
+                  <p className="text-sm text-white font-semibold font-mono">{docFile.name}</p>
+                  <p className="text-xs text-[#00F0FF] font-mono">
+                    大小: {(docFile.size / (1024 * 1024)).toFixed(2)} MB // 点击更换文件
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center font-sans">
+                  <p className="text-sm font-semibold text-[#8a8a9e]">上传附件文档</p>
+                  <p className="text-[10px] text-gray-600 font-mono mt-1">支持 PDF/Word/Excel/PPT/TXT/Zip 等格式</p>
+                </div>
+              )}
+            </div>
+
+            {/* Visibility toggle */}
+            {docFile && (
+              <div className="mt-3 flex items-center gap-3 bg-[#13141c] p-3 rounded-xs border border-[#323344]/50">
+                <span className="font-mono text-[10px] text-[#8a8a9e] uppercase tracking-wider shrink-0">附件可见性</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDocVisibility('public')}
+                    className={`h-8 px-3 font-mono text-xs font-bold tracking-wider rounded-xs transition-all cursor-pointer border ${
+                      docVisibility === 'public'
+                        ? "bg-[#ff5500]/15 text-[#ff5500] border-[#ff5500]/50"
+                        : "bg-transparent text-[#8a8a9e] border-[#323344] hover:border-[#ff5500]/40 hover:text-white"
+                    }`}
+                  >
+                    公开显示
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDocVisibility('logged_in')}
+                    className={`h-8 px-3 font-mono text-xs font-bold tracking-wider rounded-xs transition-all cursor-pointer border ${
+                      docVisibility === 'logged_in'
+                        ? "bg-[#ff5500]/15 text-[#ff5500] border-[#ff5500]/50"
+                        : "bg-transparent text-[#8a8a9e] border-[#323344] hover:border-[#ff5500]/40 hover:text-white"
+                    }`}
+                  >
+                    仅登录可见
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDocVisibility('chat_only')}
+                    className={`h-8 px-3 font-mono text-xs font-bold tracking-wider rounded-xs transition-all cursor-pointer border ${
+                      docVisibility === 'chat_only'
+                        ? "bg-[#ff5500]/15 text-[#ff5500] border-[#ff5500]/50"
+                        : "bg-transparent text-[#8a8a9e] border-[#323344] hover:border-[#ff5500]/40 hover:text-white"
+                    }`}
+                  >
+                    私聊发送
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </section>

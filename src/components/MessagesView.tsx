@@ -14,7 +14,8 @@ export const MessagesView: React.FC = () => {
     setActiveChatThreadId,
     sendChatMessage,
     isLoadingChat,
-    clearUnreads
+    clearUnreads,
+    userProfile
   } = useApp();
 
   const [chatInput, setChatInput] = useState("");
@@ -47,6 +48,11 @@ export const MessagesView: React.FC = () => {
     const text = chatInput;
     setChatInput("");
     await sendChatMessage(activeChatThreadId, text);
+  };
+
+  const handleSendPhone = async () => {
+    if (!activeChatThreadId || !userProfile?.phone) return;
+    await sendChatMessage(activeChatThreadId, `我的手机号：${userProfile.phone}`);
   };
 
   return (
@@ -244,6 +250,15 @@ export const MessagesView: React.FC = () => {
                       placeholder="发送控制或技术查询指令..."
                       type="text"
                     />
+                    <button
+                      type="button"
+                      onClick={handleSendPhone}
+                      disabled={isLoadingChat || !userProfile?.phone}
+                      className="text-[10px] font-mono text-[#8a8a9e] hover:text-[#ff5500] border border-[#323344] hover:border-[#ff5500]/40 px-2 py-1 rounded-xs transition-colors cursor-pointer shrink-0"
+                      title="发送我的手机号"
+                    >
+                      发送手机号
+                    </button>
                     <button
                       type="submit"
                       disabled={!chatInput.trim() || isLoadingChat}
