@@ -417,7 +417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (!profileData?.email) {
-      return { error: "该手机号未注册，请先注册账号" };
+      return { error: "该手机号未注册，请先注册账号。如确认已注册，可能是管理员清除了用户数据，请联系客服。" };
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email: profileData.email, password });
@@ -467,7 +467,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (error) {
       if (error.message.toLowerCase().includes("already") || error.message.includes("已")) {
-        return { error: "该邮箱已被注册，请返回登录页面登录" };
+        return { error: `该邮箱 ${email} 已被注册（认证系统记录），请直接登录或更换邮箱` };
       }
       return { error: error.message };
     }
