@@ -404,23 +404,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auth functions
   const login = async (phone: string, password: string): Promise<{ error?: string }> => {
     // Use stateless client for phone lookup — never affected by stale sessions
-    const { data: profileData, error: queryError } = await supabaseAnon
+    const { data, error: queryError } = await supabaseAnon
       .from('profiles')
       .select('email')
-      .eq('phone', phone)
-      .limit(1)
-      .maybeSingle();
+      .eq('phone', phone);
 
     if (queryError) {
       console.error("Phone lookup error:", queryError);
       return { error: `查询异常(${queryError.code || 'unknown'})，请稍后重试` };
     }
 
-    if (!profileData?.email) {
+    const profileEmail = data && data.length > 0 ? data[0].email : null;
+    if (!profileEmail) {
       return { error: "该手机号未注册，请先注册账号" };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email: profileData.email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: profileEmail, password });
 
     if (error) {
       if (error.message === "Invalid login credentials") {
@@ -446,14 +445,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     location: string
   ): Promise<{ error?: string; needEmailConfirm?: boolean }> => {
     // Pre-check: is phone already registered? (use stateless client to avoid session issues)
-    const { data: phoneExists } = await supabaseAnon
+    const { data: phoneCheck } = await supabaseAnon
       .from('profiles')
       .select('id')
-      .eq('phone', phone)
-      .limit(1)
-      .maybeSingle();
+      .eq('phone', phone);
 
-    if (phoneExists) {
+    if (phoneCheck && phoneCheck.length > 0) {
       return { error: "该手机号已被注册，请返回登录页面直接登录" };
     }
 
