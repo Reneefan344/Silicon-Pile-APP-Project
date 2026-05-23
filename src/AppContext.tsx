@@ -37,8 +37,8 @@ interface AppContextProps {
   submitInquiry: (posting: Posting, inquiryText: string) => Promise<string>;
   clearUnreads: (threadId: string) => Promise<void>;
   addLogMessage: (log: Omit<SystemLog, 'id' | 'timestamp'>) => Promise<void>;
-  login: (email: string, password: string) => Promise<{ error?: string }>;
-  register: (email: string, password: string, nickname: string, phone: string, location: string) => Promise<{ error?: string }>;
+  login: (phone: string, password: string) => Promise<{ error?: string }>;
+  register: (email: string, password: string, nickname: string, phone: string, location: string) => Promise<{ error?: string; needEmailConfirm?: boolean }>;
   logout: () => Promise<void>;
 }
 
@@ -109,6 +109,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
+        setWelcomeEnteredState(true);
         setRegisteredState(true);
       }
     });
@@ -415,6 +416,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const { error } = await supabase.auth.signInWithPassword({ email: profileData.email, password });
     if (error) return { error: error.message === "Invalid login credentials" ? "手机号或密码错误，请重试" : error.message };
+
+    setWelcomeEnteredState(true);
+    setRegisteredState(true);
     setIsDataLoaded(false);
     return {};
   };
@@ -425,7 +429,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     nickname: string,
     phone: string,
     location: string
-  ): Promise<{ error?: string }> => {
+  ): Promise<{ error?: string; needEmailConfirm?: boolean }> => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -436,16 +440,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (error) return { error: error.message };
 
-    // If user is immediately signed up (no email confirmation), update profile
     if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        nickname,
-        phone,
-        email,
-        location,
-      });
-      setIsDataLoaded(false);
+      if (data.session) {
+        // Auto-logged in (email confirmation disabled)
+        // Profile is auto-created by DB trigger; upsert to ensure phone/email are stored
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          nickname,
+          phone,
+          email,
+          location,
+        });
+        setWelcomeEnteredState(true);
+        setRegisteredState(true);
+        setIsDataLoaded(false);
+      } else {
+        // Email confirmation required — DB trigger handle_new_user() already created the profile.
+        return { needEmailConfirm: true };
+      }
     }
 
     return {};

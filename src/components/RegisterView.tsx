@@ -4,7 +4,7 @@ import { User, Smartphone, Mail, MapPin, ArrowRight, Key, ShieldAlert, CheckCirc
 import { motion, AnimatePresence } from "motion/react";
 
 export const RegisterView: React.FC = () => {
-  const { register: supabaseRegister } = useApp();
+  const { register: supabaseRegister, setWelcomeEntered, setRegistered } = useApp();
 
   const [nickname, setNickname] = useState("");
   const [phone, setPhone] = useState("");
@@ -15,12 +15,14 @@ export const RegisterView: React.FC = () => {
 
   const [errorText, setErrorText] = useState("");
   const [successText, setSuccessText] = useState("");
+  const [needEmailConfirm, setNeedEmailConfirm] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText("");
     setSuccessText("");
+    setNeedEmailConfirm(false);
 
     if (!nickname.trim()) {
       setErrorText("请填写角色昵称");
@@ -65,6 +67,9 @@ export const RegisterView: React.FC = () => {
 
     if (result.error) {
       setErrorText(result.error);
+    } else if (result.needEmailConfirm) {
+      setNeedEmailConfirm(true);
+      setSuccessText("注册验证邮件已发送至您的邮箱，请查收并点击确认链接后返回登录。");
     } else {
       setSuccessText("终端核实注册成功，正在跳转接入云端...");
     }
@@ -210,10 +215,24 @@ export const RegisterView: React.FC = () => {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="p-3 bg-[#3efc00]/10 border border-[#3efc00]/30 rounded-xs text-[#3efc00] text-xs flex gap-2 items-center"
+                className="flex flex-col gap-3"
               >
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{successText}</span>
+                <div className="p-3 bg-[#3efc00]/10 border border-[#3efc00]/30 rounded-xs text-[#3efc00] text-xs flex gap-2 items-center">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{successText}</span>
+                </div>
+                {needEmailConfirm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWelcomeEntered(false);
+                      setRegistered(false);
+                    }}
+                    className="w-full text-center text-xs text-[#ff5500] hover:text-white border border-[#ff5500]/30 hover:bg-[#ff5500]/10 py-2 rounded-xs transition-colors cursor-pointer"
+                  >
+                    返回登录页面
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
