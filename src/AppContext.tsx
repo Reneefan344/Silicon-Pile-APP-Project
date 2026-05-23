@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "./supabaseClient";
+import { supabase, supabaseAnon } from "./supabaseClient";
 import { Posting, ChatThread, ChatMessage, SystemLog, TabType, UserProfile, Comment } from "./types";
 import { INITIAL_POSTINGS, INITIAL_CHATS, INITIAL_SYSTEM_LOGS } from "./initialData";
 
@@ -403,35 +403,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Auth functions
   const login = async (phone: string, password: string): Promise<{ error?: string }> => {
-    // Ensure any stale session from a previous logout is fully cleared
-    await supabase.auth.getSession();
-
-    // Look up email by phone number from profiles (unauthenticated, RLS allows public read)
-    let { data: profileData, error: queryError } = await supabase
+    // Use stateless client for phone lookup — never affected by stale sessions
+    const { data: profileData, error: queryError } = await supabaseAnon
       .from('profiles')
       .select('email')
       .eq('phone', phone)
       .limit(1)
       .maybeSingle();
 
-    // If query failed due to stale/invalid session, force-clear and retry once
     if (queryError) {
-      await supabase.auth.signOut();
-      const retry = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('phone', phone)
-        .limit(1)
-        .maybeSingle();
-      if (retry.error) {
-        console.error("Phone lookup error (retry):", retry.error);
-        return { error: "系统查询异常，请稍后重试" };
-      }
-      profileData = retry.data;
+      console.error("Phone lookup error:", queryError);
+      return { error: `查询异常(${queryError.code || 'unknown'})，请稍后重试` };
     }
 
     if (!profileData?.email) {
-      return { error: "该手机号未注册，请先注册账号。如确认已注册，可能是管理员清除了用户数据，请联系客服。" };
+      return { error: "该手机号未注册，请先注册账号" };
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email: profileData.email, password });
@@ -459,8 +445,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     phone: string,
     location: string
   ): Promise<{ error?: string; needEmailConfirm?: boolean }> => {
-    // Pre-check: is phone already registered?
-    const { data: phoneExists } = await supabase
+    // Pre-check: is phone already registered? (use stateless client to avoid session issues)
+    const { data: phoneExists } = await supabaseAnon
       .from('profiles')
       .select('id')
       .eq('phone', phone)
