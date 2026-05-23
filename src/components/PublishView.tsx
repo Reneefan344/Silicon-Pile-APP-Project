@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { useApp } from "../AppContext";
 import { Posting } from "../types";
 import { FileText, MapPin, MemoryStick, UploadCloud, Rocket, Check, AlertTriangle, ShieldCheck, Sparkles, Clock } from "lucide-react";
-import { motion } from "motion/react";
+import "../animations.css";
 
 export const PublishView: React.FC = () => {
   const {

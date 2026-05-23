@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useApp } from "../AppContext";
 import { SystemLog, ChatThread, ChatMessage } from "../types";
 import { Terminal, Send, Server, Info, ShieldAlert, Cpu, Orbit, ArrowLeft, RefreshCw, AlertTriangle } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import "../animations.css";
 
 export const MessagesView: React.FC = () => {
   const {
@@ -147,15 +147,11 @@ export const MessagesView: React.FC = () => {
         {activeMessageSubTab === 'chat' && (
           <div className="flex flex-col h-[calc(100vh-220px)] bg-[#111221] overflow-hidden rounded-xs border border-[#323344]/40 relative">
             
-            <AnimatePresence mode="wait">
+            <div>
               {activeThread ? (
-                // Thread detailing chat log view
-                <motion.div
+                <div
                   key="thread-view"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="flex flex-col h-full bg-[#111221]"
+                  className="flex flex-col h-full bg-[#111221] animate-fade-in-up"
                 >
                   {/* Active Operator header bar */}
                   <div className="bg-[#1d1e2e] border-b border-[#323344]/60 p-3 shrink-0 flex items-center justify-between">
@@ -268,15 +264,12 @@ export const MessagesView: React.FC = () => {
                       <Send className="w-4 h-4" />
                     </button>
                   </form>
-                </motion.div>
+                </div>
               ) : (
                 // Threads index selector view
-                <motion.div
+                <div
                   key="list-view"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex flex-col h-full overflow-y-auto"
+                  className="flex flex-col h-full overflow-y-auto animate-fade-in"
                 >
                   {chats.map((thread) => {
                     const latestMsg = thread.messages.slice(-1)[0];
@@ -328,9 +321,9 @@ export const MessagesView: React.FC = () => {
                       </div>
                     );
                   })}
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
+            </div>
           </div>
         )}
       </div>

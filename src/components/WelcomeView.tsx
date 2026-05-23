@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useApp } from "../AppContext";
 import { Rocket, ArrowRight, Smartphone, Lock, AlertTriangle } from "lucide-react";
-import { motion } from "motion/react";
+import "../animations.css";
 
 export const WelcomeView: React.FC = () => {
   const { setWelcomeEntered, login, isAuthLoading } = useApp();
@@ -83,14 +83,10 @@ export const WelcomeView: React.FC = () => {
             </div>
 
             {loginError && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                className="p-3 bg-[#ff5500]/10 border border-[#ff5500]/30 rounded-xs text-[#ff5500] text-xs flex gap-2 items-center"
-              >
+              <div className="p-3 bg-[#ff5500]/10 border border-[#ff5500]/30 rounded-xs text-[#ff5500] text-xs flex gap-2 items-center animate-fade-in">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>{loginError}</span>
-              </motion.div>
+              </div>
             )}
 
             <button
@@ -140,13 +136,9 @@ export const WelcomeView: React.FC = () => {
         <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-[#ff5500]/40" />
 
         <div className="flex flex-col items-center mt-6">
-          <motion.h1
-            animate={{ opacity: [0.7, 1, 0.7] }}
-            className="text-4xl text-center font-bold text-[#ff5500] tracking-[0.25em] drop-shadow-[0_0_15px_rgba(255,85,0,0.6)] mb-4"
-            transition={{ repeat: Infinity, duration: 4 }}
-          >
+          <h1 className="text-4xl text-center font-bold text-[#ff5500] tracking-[0.25em] drop-shadow-[0_0_15px_rgba(255,85,0,0.6)] mb-4 animate-pulse">
             硅堆
-          </motion.h1>
+          </h1>
 
           <div className="w-full max-w-sm border border-[#ff5500]/20 bg-[#0d0d14]/80 p-4 text-center rounded-xs backdrop-blur-md">
             <h2 className="text-base font-semibold text-gray-200 tracking-wider">

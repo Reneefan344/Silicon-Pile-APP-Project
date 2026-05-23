@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useApp } from "../AppContext";
 import { User, Smartphone, Mail, MapPin, ArrowRight, Key, ShieldAlert, CheckCircle2, Lock } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import "../animations.css";
 
 export const RegisterView: React.FC = () => {
   const { register: supabaseRegister, setWelcomeEntered, setRegistered } = useApp();
@@ -197,26 +197,15 @@ export const RegisterView: React.FC = () => {
             />
           </div>
 
-          <AnimatePresence>
-            {errorText && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="p-3 bg-[#ff5500]/10 border border-[#ff5500]/30 rounded-xs text-[#ff5500] text-xs flex gap-2 items-center"
-              >
+          {errorText && (
+              <div className="p-3 bg-[#ff5500]/10 border border-[#ff5500]/30 rounded-xs text-[#ff5500] text-xs flex gap-2 items-center animate-fade-in">
                 <ShieldAlert className="w-4 h-4 shrink-0" />
                 <span>{errorText}</span>
-              </motion.div>
+              </div>
             )}
 
             {successText && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="flex flex-col gap-3"
-              >
+              <div className="flex flex-col gap-3 animate-fade-in">
                 <div className="p-3 bg-[#3efc00]/10 border border-[#3efc00]/30 rounded-xs text-[#3efc00] text-xs flex gap-2 items-center">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>{successText}</span>
@@ -233,9 +222,8 @@ export const RegisterView: React.FC = () => {
                     返回登录页面
                   </button>
                 )}
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
 
           <button
             type="submit"

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../AppContext";
-import { motion, AnimatePresence } from "motion/react";
+import "../animations.css";
 import { AlertTriangle, Check, Info } from "lucide-react";
 
 export const ToastContainer: React.FC = () => {
@@ -32,21 +32,18 @@ export const ToastContainer: React.FC = () => {
     currentLog?.status === 'alert' ? 'border-[#ffaa00]/60' : 'border-[#00F0FF]/40';
 
   return (
-    <AnimatePresence>
+    <div>
       {visible && currentLog && (
-        <motion.div
-          initial={{ opacity: 0, y: -40, x: 20 }}
-          animate={{ opacity: 1, y: 0, x: 0 }}
-          exit={{ opacity: 0, y: -20, x: 20 }}
-          className={`fixed top-4 right-4 z-[100] max-w-sm bg-[#0D0E12]/95 border ${borderColor} backdrop-blur-md p-4 rounded-sm shadow-lg flex items-start gap-3`}
+        <div
+          className={`fixed top-4 right-4 z-[100] max-w-sm bg-[#0D0E12]/95 border ${borderColor} backdrop-blur-md p-4 rounded-sm shadow-lg flex items-start gap-3 animate-fade-in`}
         >
           <div className="shrink-0 mt-0.5">{icon}</div>
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="font-mono text-xs text-[#00F0FF] font-bold truncate">{currentLog.title}</span>
             <span className="text-[11px] text-[#8a8a9e] leading-relaxed line-clamp-2">{currentLog.description}</span>
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </div>
   );
 };

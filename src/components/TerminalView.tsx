@@ -3,7 +3,7 @@ import { useApp } from "../AppContext";
 import { supabase } from "../supabaseClient";
 import { Posting } from "../types";
 import { ShieldAlert, BookOpen, ShieldCheck, Heart, Trash2, Key, Info, HelpCircle, ArrowRight, Server, Globe, Sparkles, Lock, LogOut, Headphones, MessageSquare, AlertCircle } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import "../animations.css";
 
 export const TerminalView: React.FC = () => {
   const {
@@ -299,14 +299,11 @@ export const TerminalView: React.FC = () => {
       </section>
 
       {/* Dialogue windows details overlay modals */}
-      <AnimatePresence>
+      <div>
         {activeDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#111221] border border-[#00dbe9] w-full max-w-md p-5 flex flex-col relative rounded-sm max-h-[85vh] overflow-hidden"
+            <div
+              className="bg-[#111221] border border-[#00dbe9] w-full max-w-md p-5 flex flex-col relative rounded-sm max-h-[85vh] overflow-hidden animate-slide-up"
             >
               {/* Decorative corners */}
               <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l border-[#00dbe9]" />
@@ -570,10 +567,10 @@ export const TerminalView: React.FC = () => {
                 )}
 
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
+      </div>
 
     </div>
   );

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useApp } from "../AppContext";
 import { Posting } from "../types";
 import { Search, SlidersHorizontal, MapPin, Zap, RefreshCw, Calendar, Tag, Info, Heart, Bookmark, AlertCircle, FileText, Download, MessageSquare, Send, Share2, Copy, Check, Trash2 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import "../animations.css";
 import { generateQRCode } from "../utils/qrcode";
 
 const CommentInputForm: React.FC<{ postId: string }> = ({ postId }) => {
@@ -426,14 +426,11 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
       </div>
 
       {/* Dynamic details dialog and inquiry modal */}
-      <AnimatePresence>
+      <div>
         {selectedPost && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0D0E12] border border-[#00F0FF] w-full max-w-lg p-5 flex flex-col relative overflow-hidden rounded-sm max-h-[90vh]"
+            <div
+              className="bg-[#0D0E12] border border-[#00F0FF] w-full max-w-lg p-5 flex flex-col relative overflow-hidden rounded-sm max-h-[90vh] animate-slide-up"
             >
               {/* Corner accents */}
               <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-[#00F0FF]" />
@@ -631,14 +628,10 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                 {/* Submit dialogue form */}
                 {isSuccessInquiry ? (
                   <div className="bg-[#13141c] p-4 text-center border border-[#00F0FF] rounded-xs">
-                    <motion.div
-                      initial={{ scale: 0.8 }}
-                      animate={{ scale: 1 }}
-                      className="text-[#00F0FF] font-bold tracking-widest text-sm flex flex-col gap-2"
-                    >
+                    <div className="text-[#00F0FF] font-bold tracking-widest text-sm flex flex-col gap-2 animate-fade-in-up">
                       <span>私聊发送成功</span>
                       <span className="text-gray-400 font-normal font-sans text-xs">请等待对方回复</span>
-                    </motion.div>
+                    </div>
                   </div>
                 ) : (
                   <form onSubmit={handleSubmitInquiry} className="flex flex-col gap-2 border-t border-[#323344] pt-3 shrink-0">
@@ -660,20 +653,17 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                   </form>
                 )}
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* Share Modal */}
-      <AnimatePresence>
+      <div>
         {sharePost && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs" onClick={() => setSharePost(null)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0D0E12] border border-[#00F0FF] w-full max-w-sm p-5 flex flex-col items-center relative overflow-hidden rounded-sm"
+            <div
+              className="bg-[#0D0E12] border border-[#00F0FF] w-full max-w-sm p-5 flex flex-col items-center relative overflow-hidden rounded-sm animate-slide-up"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Corner accents */}
@@ -720,10 +710,10 @@ STATUS: VERIFIED SECURE & READY FOR DEPLOYMENT
                   <span>{isCopied ? '已复制' : '复制'}</span>
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 };

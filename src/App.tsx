@@ -9,7 +9,7 @@ import { WelcomeView } from "./components/WelcomeView";
 import { RegisterView } from "./components/RegisterView";
 import { ToastContainer } from "./components/ToastContainer";
 import { Layers, PlusSquare, Terminal, User, Grid2X2, BarChart3 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import "./animations.css";
 
 const LobbyView = React.lazy(() => import("./components/LobbyView").then(m => ({ default: m.LobbyView })));
 const PublishView = React.lazy(() => import("./components/PublishView").then(m => ({ default: m.PublishView })));
@@ -141,15 +141,7 @@ function AppContent() {
 
       {/* Main viewport area, with fluid container layout */}
       <main className={`pt-20 px-4 max-w-2xl mx-auto w-full flex flex-col ${activeTab === 'lobby' ? 'pt-32' : 'pt-20'}`}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18 }}
-            className="flex-1"
-          >
+          <div key={activeTab} className="flex-1 animate-fade-in-up">
             <Suspense fallback={<PageFallback />}>
               {activeTab === 'lobby' && <LobbyView />}
               {activeTab === 'publish' && <PublishView />}
@@ -157,8 +149,7 @@ function AppContent() {
               {activeTab === 'messages' && <MessagesView />}
               {activeTab === 'terminal' && <TerminalView />}
             </Suspense>
-          </motion.div>
-        </AnimatePresence>
+          </div>
       </main>
 
       {/* Sticky footer tab persistent bar */}
