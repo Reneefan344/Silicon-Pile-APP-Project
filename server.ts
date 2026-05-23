@@ -158,7 +158,7 @@ const AGENT_HTML = `<!DOCTYPE html>
         const isOpen = esc.status === "pending" ? " open" : "";
         return '<div class="ticket">' +
           '<div class="ticket-header" onclick="toggleTicket(this)">' +
-            '<span class="ticket-id"># + esc.thread_id + '</span>' +
+            '<span class="ticket-id">#' + esc.thread_id + '</span>' +
             '<span class="ticket-status '+statusClass+'">'+statusText+'</span>' +
           '</div>' +
           '<div class="ticket-body'+isOpen+'">' +
