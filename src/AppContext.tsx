@@ -406,17 +406,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Direct Supabase REST API call — bypasses all JS client internals
     let profileEmail: string | null = null;
     try {
-      const queryUrl = `${supabaseUrl}/rest/v1/profiles?select=email&phone=eq.${encodeURIComponent(phone)}`;
+      const queryUrl = `${supabaseUrl}/rest/v1/profiles?select=email&phone=eq.${phone}`;
       const res = await fetch(queryUrl, {
-        headers: {
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
+        headers: { 'apikey': supabaseAnonKey, 'Accept': 'application/json' },
       });
       if (!res.ok) {
-        const errBody = await res.text();
-        console.error("Phone lookup HTTP", res.status, errBody);
-        return { error: `查询异常(HTTP ${res.status})，请稍后重试` };
+        const errText = await res.text();
+        console.error("Phone lookup HTTP", res.status, errText);
+        return { error: `查询异常: ${errText.slice(0, 100)}` };
       }
       const rows = await res.json();
       if (Array.isArray(rows) && rows.length > 0 && rows[0].email) {
