@@ -3,11 +3,12 @@ import { useApp } from "../AppContext";
 import { Posting } from "../types";
 import { BarChart3, Search, MapPin, Calendar, Heart } from "lucide-react";
 
+type CardFilter = 'all' | 'supply' | 'demand' | 'expirySoon' | 'expired';
+
 export const DashboardView: React.FC = () => {
   const { postings, toggleBookmark, bookmarkedIds, setActiveTab } = useApp();
 
-  const [typeFilter, setTypeFilter] = useState<'all' | 'supply' | 'demand'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | '现货' | '期货' | '在途' | 'expired'>('all');
+  const [cardFilter, setCardFilter] = useState<CardFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const now = new Date();
@@ -32,17 +33,26 @@ export const DashboardView: React.FC = () => {
     };
   }, [postings]);
 
-  // Filtered postings (include both active and expired for dashboard)
+  // Filtered postings
   const filteredPostings = useMemo(() => {
     return postings.filter(p => {
       const isExpired = p.expiresAt && new Date(p.expiresAt) <= now;
-      if (typeFilter !== 'all' && p.type !== typeFilter) return false;
-      if (statusFilter === 'expired') {
+
+      if (cardFilter === 'supply') {
+        if (p.type !== 'supply' || isExpired) return false;
+      } else if (cardFilter === 'demand') {
+        if (p.type !== 'demand' || isExpired) return false;
+      } else if (cardFilter === 'expirySoon') {
+        if (isExpired || !p.expiresAt) return false;
+        const daysLeft = (new Date(p.expiresAt).getTime() - now.getTime()) / 86400000;
+        if (daysLeft <= 0 || daysLeft > 7) return false;
+      } else if (cardFilter === 'expired') {
         if (!isExpired) return false;
-      } else if (statusFilter !== 'all' && p.status !== statusFilter) {
-        return false;
+      } else {
+        // 'all' — exclude expired
+        if (isExpired) return false;
       }
-      if (statusFilter === 'all' && isExpired) return true; // Show expired in "all" mode
+
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const haystack = `${p.title} ${p.architecture} ${p.location} ${p.cpu || ''} ${p.gpu || ''} ${p.qty}`.toLowerCase();
@@ -50,7 +60,7 @@ export const DashboardView: React.FC = () => {
       }
       return true;
     });
-  }, [postings, typeFilter, statusFilter, searchQuery, now]);
+  }, [postings, cardFilter, searchQuery, now]);
 
   const isExpired = (post: Posting) => post.expiresAt && new Date(post.expiresAt) <= now;
 
@@ -59,58 +69,37 @@ export const DashboardView: React.FC = () => {
     setActiveTab('lobby');
   };
 
+  const statCards = [
+    { key: 'all' as CardFilter, label: '全部发布', value: stats.total, color: '#00F0FF' },
+    { key: 'supply' as CardFilter, label: '货源发布', value: stats.supply, color: '#00F0FF' },
+    { key: 'demand' as CardFilter, label: '需求发布', value: stats.demand, color: '#ff5500' },
+    { key: 'expirySoon' as CardFilter, label: '即将过期', value: stats.expirySoon, color: '#ffaa00' },
+    { key: 'expired' as CardFilter, label: '已过期', value: stats.expired, color: '#ff3333' },
+  ] as const;
+
   return (
     <div className="flex flex-col gap-4 font-sans text-[#e1e0f7] pb-10">
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {([
-          { label: '在线发布', value: stats.total, color: '#00F0FF' },
-          { label: '算力供应', value: stats.supply, color: '#00F0FF' },
-          { label: '算力需求', value: stats.demand, color: '#ff5500' },
-          { label: '即将过期', value: stats.expirySoon, color: '#ffaa00' },
-          { label: '已过期', value: stats.expired, color: '#ff3333' },
-        ] as const).map(s => (
-          <div key={s.label} className="bg-[#0D0E12] border border-[#323344] p-3 rounded-sm flex flex-col items-center gap-1">
+        {statCards.map(s => (
+          <div
+            key={s.key}
+            onClick={() => setCardFilter(s.key)}
+            className={`bg-[#0D0E12] border p-3 rounded-sm flex flex-col items-center gap-1 cursor-pointer transition-all ${
+              cardFilter === s.key
+                ? 'border-[#00F0FF]/60 shadow-[0_0_8px_rgba(0,240,255,0.15)]'
+                : 'border-[#323344] hover:border-[#323344]/80'
+            }`}
+          >
             <span className="text-2xl font-bold font-mono" style={{ color: s.color }}>{s.value}</span>
             <span className="text-[10px] text-[#8a8a9e] font-mono tracking-wider">{s.label}</span>
           </div>
         ))}
       </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 bg-[#0D0E12] border border-[#323344] p-3 rounded-sm">
-        {/* Type filter */}
-        <div className="flex gap-1">
-          {(['all', 'supply', 'demand'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`h-8 px-3 font-mono text-xs rounded-xs transition-all cursor-pointer border ${
-                typeFilter === t
-                  ? 'bg-[#ff5500]/15 text-[#ff5500] border-[#ff5500]/50'
-                  : 'bg-[#13141c] text-[#8a8a9e] border-[#323344] hover:border-[#ff5500]/40'
-              }`}
-            >
-              {t === 'all' ? '全部' : t === 'supply' ? '供应' : '需求'}
-            </button>
-          ))}
-        </div>
-
-        {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="h-8 px-2 bg-[#13141c] border border-[#323344] rounded-xs text-xs text-[#8a8a9e] font-mono focus:border-[#00F0FF] outline-none"
-        >
-          <option value="all">全部状态</option>
-          <option value="现货">现货</option>
-          <option value="期货">期货</option>
-          <option value="在途">在途</option>
-          <option value="expired">已过期</option>
-        </select>
-
-        {/* Search */}
-        <div className="relative flex-1 min-w-[160px]">
+      {/* Search bar */}
+      <div className="flex items-center gap-2 bg-[#0D0E12] border border-[#323344] p-3 rounded-sm">
+        <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-[#8a8a9e]" />
           <input
             type="text"
