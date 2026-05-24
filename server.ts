@@ -203,7 +203,7 @@ const AGENT_HTML = `<!DOCTYPE html>
     }
 
     function escHtml(text) {
-      return (text || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/'/g,"&#39;").replace(/\n/g,"<br>");
+      return (text || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/'/g,"&#39;").replace(/\\n/g,"<br>");
     }
 
     function toggleTicket(header) {
