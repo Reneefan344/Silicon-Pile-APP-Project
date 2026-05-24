@@ -143,42 +143,67 @@ const AGENT_HTML = `<!DOCTYPE html>
     }
 
     function renderTickets(escalations) {
-      const el = document.getElementById("ticketList");
+      const el2 = document.getElementById("ticketList");
       if (!escalations || escalations.length === 0) {
-        el.innerHTML = '<div class="empty-state">暂无待处理工单</div>';
+        el2.innerHTML = '<div class="empty-state">暂无待处理工单</div>';
         return;
       }
-      el.innerHTML = escalations.map((esc, i) => {
-        const statusClass = esc.status === "pending" ? "status-pending" : esc.status === "replied" ? "status-replied" : "status-closed";
-        const statusText = esc.status === "pending" ? "待处理" : esc.status === "replied" ? "已回复" : "已关闭";
-        const msgs = esc.messages || [];
-        const msgsHtml = msgs.map(m => {
-          const cls = m.sender === "user" ? "user" : "operator";
-          const label = m.sender === "user" ? "用户" : "客服/AI";
-          const ts = m.created_at ? new Date(m.created_at).toLocaleString("zh-CN") : "";
-          return '<div class="msg '+cls+'"><div class="msg-label">'+label+'</div>'+escHtml(m.text)+'<div class="timestamp">'+ts+'</div></div>';
-        }).join("");
-        const isOpen = esc.status === "pending" ? " open" : "";
-        return '<div class="ticket">' +
-          '<div class="ticket-header" onclick="toggleTicket(this)">' +
-            '<span class="ticket-id">#' + esc.thread_id + '</span>' +
-            '<span class="ticket-status '+statusClass+'">'+statusText+'</span>' +
-          '</div>' +
-          '<div class="ticket-body'+isOpen+'">' +
-            (esc.context ? '<div style="color:#8a8a9e;font-size:11px;margin-bottom:8px;padding:8px;background:#0c0d1c;border-radius:2px">'+escHtml(esc.context)+'</div>' : '') +
-            '<div style="margin-bottom:8px">'+msgsHtml+'</div>' +
-            (esc.status !== "closed" ? '<div class="reply-form">' +
-              '<textarea id="reply-'+i+'" placeholder="输入回复..."></textarea>' +
-              '<button onclick="sendReply(\''+esc.id+'\',\''+esc.thread_id+'\',\''+esc.user_id+'\','+i+')">发送回复</button>' +
-              (esc.status === "pending" ? '<button class="close-btn" onclick="closeTicket(\''+esc.id+'\',\''+esc.thread_id+'\',\''+esc.user_id+'\')">关闭工单</button>' : '') +
-            '</div>' : '<div style="color:#8a8a9e;font-size:11px;text-align:center;padding:8px">此工单已关闭</div>') +
-          '</div>' +
-        '</div>';
-      }).join("");
+      var html = '';
+      for (var i = 0; i < escalations.length; i++) {
+        var esc = escalations[i];
+        var statusClass = esc.status === "pending" ? "status-pending" : esc.status === "replied" ? "status-replied" : "status-closed";
+        var statusText = esc.status === "pending" ? "待处理" : esc.status === "replied" ? "已回复" : "已关闭";
+        var msgs = esc.messages || [];
+        var msgsHtml = '';
+        for (var j = 0; j < msgs.length; j++) {
+          var m = msgs[j];
+          var cls = m.sender === "user" ? "user" : "operator";
+          var label = m.sender === "user" ? "用户" : "客服/AI";
+          var ts = m.created_at ? new Date(m.created_at).toLocaleString("zh-CN") : "";
+          msgsHtml += '<div class="msg '+cls+'"><div class="msg-label">'+label+'</div>'+escHtml(m.text)+'<div class="timestamp">'+ts+'</div></div>';
+        }
+        var isOpen = esc.status === "pending" ? " open" : "";
+        html += '<div class="ticket">';
+        html += '<div class="ticket-header" onclick="toggleTicket(this)"><span class="ticket-id">#'+escHtml(esc.thread_id)+'</span><span class="ticket-status '+statusClass+'">'+statusText+'</span></div>';
+        html += '<div class="ticket-body'+isOpen+'">';
+        if (esc.context) html += '<div style="color:#8a8a9e;font-size:11px;margin-bottom:8px;padding:8px;background:#0c0d1c;border-radius:2px">'+escHtml(esc.context)+'</div>';
+        html += '<div style="margin-bottom:8px">'+msgsHtml+'</div>';
+        if (esc.status !== "closed") {
+          html += '<div class="reply-form">';
+          html += '<textarea id="reply-'+i+'" placeholder="输入回复..."></textarea>';
+          html += '<button data-action="reply" data-escid="'+escHtml(esc.id)+'" data-threadid="'+escHtml(esc.thread_id)+'" data-userid="'+escHtml(esc.user_id||"")+'" data-idx="'+i+'">发送回复</button>';
+          if (esc.status === "pending") html += '<button class="close-btn" data-action="close" data-escid="'+escHtml(esc.id)+'" data-threadid="'+escHtml(esc.thread_id)+'" data-userid="'+escHtml(esc.user_id||"")+'">关闭工单</button>';
+          html += '</div>';
+        } else {
+          html += '<div style="color:#8a8a9e;font-size:11px;text-align:center;padding:8px">此工单已关闭</div>';
+        }
+        html += '</div></div>';
+      }
+      el2.innerHTML = html;
+      // Event delegation
+      el2.querySelectorAll("button[data-action]").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          var action = this.getAttribute("data-action");
+          var escId = this.getAttribute("data-escid");
+          var threadId = this.getAttribute("data-threadid");
+          var userId = this.getAttribute("data-userid");
+          if (action === "reply") {
+            var idx = this.getAttribute("data-idx");
+            var textarea = document.getElementById("reply-" + idx);
+            var replyText = textarea ? textarea.value.trim() : "";
+            if (!replyText) return;
+            sendReply(escId, threadId, userId, replyText).then(function() {
+              if (textarea) textarea.value = "";
+            });
+          } else if (action === "close") {
+            closeTicket(escId, threadId, userId);
+          }
+        });
+      });
     }
 
     function escHtml(text) {
-      return (text || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\\n/g,"<br>");
+      return (text || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/'/g,"&#39;").replace(/\n/g,"<br>");
     }
 
     function toggleTicket(header) {
@@ -186,19 +211,15 @@ const AGENT_HTML = `<!DOCTYPE html>
       body.classList.toggle("open");
     }
 
-    async function sendReply(escId, threadId, userId, idx) {
-      const textarea = document.getElementById("reply-" + idx);
-      const replyText = textarea.value.trim();
-      if (!replyText) return;
+    async function sendReply(escId, threadId, userId, replyText) {
       try {
-        const res = await fetch("/api/agent/reply", {
+        var res = await fetch("/api/agent/reply", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-          body: JSON.stringify({ escalationId: escId, threadId, userId, replyText, token })
+          body: JSON.stringify({ escalationId: escId, threadId: threadId, userId: userId, replyText: replyText, token: token })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
-          textarea.value = "";
           loadEscalations();
         } else {
           alert("发送失败: " + (data.error || "未知错误"));
@@ -211,12 +232,12 @@ const AGENT_HTML = `<!DOCTYPE html>
     async function closeTicket(escId, threadId, userId) {
       if (!confirm("确认关闭此工单？")) return;
       try {
-        const res = await fetch("/api/agent/reply", {
+        var res = await fetch("/api/agent/reply", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-          body: JSON.stringify({ escalationId: escId, threadId, userId, replyText: "[系统] 此工单已被客服关闭。", token, closeTicket: true })
+          body: JSON.stringify({ escalationId: escId, threadId: threadId, userId: userId, replyText: "[系统] 此工单已被客服关闭。", token: token, closeTicket: true })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
           loadEscalations();
         } else {
